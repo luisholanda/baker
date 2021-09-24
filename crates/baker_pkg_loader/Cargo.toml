@@ -1,0 +1,14 @@
+[package]
+name = "baker_pkg_loader"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+baker_pkg_graph = { path = "../baker_pkg_graph" }
+baker_pkg_pb = { path = "../baker_pkg_pb" }
+idgen = { path = "../idgen" }
+parking_lot = "0.11.2"
+proto_parser = { path = "../proto_parser" }
+rayon = "1.5.1"

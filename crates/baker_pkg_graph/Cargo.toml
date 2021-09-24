@@ -1,0 +1,15 @@
+[package]
+name = "baker_pkg_graph"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+baker_pkg_pb = { path = "../baker_pkg_pb" }
+idgen = { path = "../idgen" }
+
+[dependencies.petgraph]
+default-features = false
+features = ["graphmap"]
+version = "0.6"

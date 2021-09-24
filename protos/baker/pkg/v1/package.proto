@@ -1,0 +1,293 @@
+syntax = "proto3";
+
+package baker.pkg.v1;
+
+// Entire package graph being processed.
+message PackageGraph {
+  // Files that should be processed.
+  repeated uint32 main_files = 1;
+
+  // All defined messages, in all loaded files.
+  map<uint32, Message> messages = 2;
+
+  // All defined enums, in all loaded files.
+  map<uint32, Enum> enums = 3;
+
+  // All loaded packages.
+  map<uint32, Package> packages = 4;
+
+  // All loaded files.
+  map<uint32, File> files = 5;
+}
+
+// A loaded package.
+message Package {
+  // Identifier of the package in the graph.
+  uint32 id = 1;
+
+  // Full package name.
+  string name = 2;
+
+  // All _loaded_ files of this package.
+  //
+  // Note that not all files of the package will be loaded. Only those
+  // necessary during the analysis of the main proto files.
+  repeated uint32 files = 3;
+
+  // All packages that this package depends on.
+  repeated uint32 dependencies = 8;
+
+  // All packages that depend on this package.
+  repeated uint32 dependents = 9;
+}
+
+// A loaded file.
+message File {
+  // Identifier of the file in the graph.
+  uint32 id = 1;
+
+  // Messages declared in this file.
+  //
+  // This is a flattened list of the messages, that is, all messages
+  // in the file are present in the list, independently of the depth.
+  repeated uint32 messages = 2;
+
+  // Enums declared in this file.
+  //
+  // This is a flattened list of the enums, that is, all enums in the
+  // file are present in the list, independently of the depth.
+  repeated uint32 enums = 3;
+
+  // Options set in the file.
+  map<string, Option.Value> options = 4;
+
+  // Other files imported by this file.
+  repeated uint32 imports = 5;
+
+  // Where this file is imported in.
+  repeated uint32 imported_by = 6;
+
+  // Services defined in the file.
+  //
+  // This is only set for main loaded files.
+  repeated Service services = 7;
+
+  // Messages defined in the root scope of the file.
+  repeated uint32 root_messages = 8;
+  // Enums defined in the root scope of the file.
+  repeated uint32 root_enums = 9;
+
+  // Path to the file.
+  string filename = 10;
+
+  // Top-level file documentation.
+  optional string documentation = 11;
+}
+
+// A declared enum.
+message Enum {
+  // A value inside an enum.
+  message Value {
+    // Name of the value.
+    string name = 1;
+
+    // Integer equivalent of the value.
+    int32 value = 2;
+
+    // Options set in the value.
+    map<string, Option.Value> options = 9;
+
+    // Documentation attached to the value.
+    optional string documentation = 10;
+  }
+
+  // Identifier of the enum.
+  uint32 id = 1;
+
+  // Full name of the enum.
+  //
+  // This include the entire scope of the enum, e.g. if a
+  // enum `Bar` is defined inside a message `Foo`, this field
+  // will have value `Foo.Bar`.
+  string name = 2;
+
+  // All values in the enum.
+  repeated Value values = 3;
+
+  // Options set in the enum.
+  map<string, Option.Value> options = 9;
+
+  // Documentation attached to the value.
+  optional string documentation = 10;
+}
+
+// A declared message.
+message Message {
+  // A message's field.
+  message Field {
+    // Possible labels attached to the field.
+    enum Label {
+      // The label is unset.
+      UNSET = 0;
+      // The field is marked as `repeated`.
+      REPEATED = 1;
+      // The field is marked as `optional`.
+      OPTIONAL = 2;
+    }
+
+    // Name of the field.
+    string name = 1;
+
+    // Number of the field in the message.
+    uint64 number = 2;
+
+    // Type of the field.
+    Type type = 3;
+
+    // Label attached to the field.
+    Label label = 5;
+
+    // Key type if this field is a map field.
+    optional Type.BuiltIn key_type = 6;
+
+    // Options of this field.
+    map<string, Option.Value> options = 9;
+
+    // Documentation of the field.
+    optional string documentation = 10;
+  }
+
+  // An `oneof` declaration.
+  message OneOf {
+    // The name of the `oneof`.
+    string name = 1;
+    // Fields in this `oneof`.
+    repeated Field fields = 2;
+    // Options in this `oneof`.
+    map<string, Option.Value> options = 9;
+    // Documentation of this `oneof`.
+    optional string documentation = 10;
+  }
+
+  // Identifier of the message.
+  uint32 id = 1;
+
+  // Full name of the message.
+  //
+  // This include the entire scope of the message, e.g. if a
+  // message `Bar` is defined inside another `Foo`, this field
+  // will have value `Foo.Bar`.
+  string name = 2;
+
+  // Fields of the message.
+  repeated Field fields = 3;
+
+  // `oneof`s of the message.
+  repeated OneOf oneofs = 4;
+
+  // Messages declared inside this message.
+  repeated uint32 messages = 5;
+
+  // Enums declared inside this message.
+  repeated uint32 enums = 6;
+
+  // Options attached to the message.
+  map<string, Option.Value> options = 9;
+
+  // Documentation of the message.
+  optional string documentation = 10;
+}
+
+// A declared service.
+message Service {
+  // A RPC method of a service.
+  message Rpc {
+    // Name of the method.
+    string name = 1;
+
+    // Type of the request.
+    Type request = 2;
+
+    // Type of the response.
+    Type response = 3;
+
+    // Options of the method.
+    map<string, Option.Value> options = 5;
+
+    // Docmentation of the method.
+    optional string documentation = 10;
+  }
+
+  // Name of the service.
+  string name = 1;
+
+  // Methods available in the service.
+  repeated Rpc methods = 2;
+
+  // Options of this service.
+  map<string, Option.Value> options = 9;
+
+  // Documentation of the service.
+  optional string documentation = 10;
+}
+
+// An option in a structure.
+message Option {
+  // A value of an option.
+  message Value {
+    // The value of the option.
+    oneof value {
+      // An identifier.
+      string identifier_value = 3;
+
+      // A float number.
+      double float_value = 4;
+
+      // A string.
+      string string_value = 5;
+
+      // A boolean.
+      bool boolean_value = 6;
+
+      // A uninterpreted value.
+      string uninterpreted_value = 7;
+    }
+  }
+}
+
+// A protobuf type.
+message Type {
+  /// Possible builtin types.
+  enum BuiltIn {
+    UNKNOWN = 0;
+    // Double point precision.
+    DOUBLE = 1;
+    // Single point precision.
+    FLOAT = 2;
+    // Signed int.
+    SINT = 3;
+    // Signed long.
+    SLONG = 4;
+    // Unsigned int.
+    UINT = 5;
+    // Unsigned long.
+    ULONG = 6;
+    // Bool.
+    BOOL = 7;
+    // String.
+    STRING = 8;
+    // Bytes.
+    BYTES = 9;
+  }
+
+  // Value of the type.
+  oneof value {
+    // Set if the field has a builtin type.
+    Type.BuiltIn bultin = 1;
+
+    // Set if the field has a custom type.
+    //
+    // This may be a message or an enum.
+    uint32 custom = 2;
+  };
+}
