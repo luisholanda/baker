@@ -1,8 +1,9 @@
-use crate::tokens::Token;
 use nom::{
     branch, bytes::complete as bytes, character::complete as character, combinator, multi,
     number::complete as number, sequence, IResult,
 };
+
+use crate::tokens::Token;
 
 macro_rules! def_pub_parsers {
     ($($name: ident = $parser: expr;)+) => {
@@ -99,9 +100,9 @@ macro_rules! def_keyword_parsers {
 }
 
 def_keyword_parsers!(
-    syntax, proto3, import, package, repeated, optional, option, oneof, map, message,
-    service, rpc, double, float, int32, int64, uint32, uint64, sint32, sint64, fixed32,
-    sfixed32, sfixed64, bool, string, bytes, returns
+    syntax, proto3, import, package, repeated, optional, option, oneof, map, message, service, rpc,
+    double, float, int32, int64, uint32, uint64, sint32, sint64, fixed32, sfixed32, sfixed64, bool,
+    string, bytes, returns
 );
 
 fn builtin_type(input: &str) -> Result {
@@ -267,8 +268,16 @@ mod tests {
 
     #[test]
     fn test_comment() {
-        assert_output!(comment, "// bla\n// foobar", Token::Comment(vec!["bla", "foobar"]));
-        assert_output!(comment, "// bla\n//\n// foobar", Token::Comment(vec!["bla", "", "foobar"]));
+        assert_output!(
+            comment,
+            "// bla\n// foobar",
+            Token::Comment(vec!["bla", "foobar"])
+        );
+        assert_output!(
+            comment,
+            "// bla\n//\n// foobar",
+            Token::Comment(vec!["bla", "", "foobar"])
+        );
     }
 
     #[test]

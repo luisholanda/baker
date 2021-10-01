@@ -1,15 +1,19 @@
+use std::{
+    collections::{HashMap, HashSet},
+    fs, io,
+    path::Path,
+};
+
 use baker_pkg_graph::PkgGraph;
-use baker_pkg_pb::message::{field, Field, OneOf};
-use baker_pkg_pb::option::{value::Value as OptValueType, Value as OptValue};
-use baker_pkg_pb::{r#type as typ, Type};
+use baker_pkg_pb::{
+    message::{field, Field, OneOf},
+    option::{value::Value as OptValueType, Value as OptValue},
+    r#type as typ, Type,
+};
 use idgen::{Id, SequentialGenerator};
 use proto_parser::ast::{
     Constant, Enum, Field as AstField, FieldLabel, FieldType, File, FullIdent, Message, Options,
 };
-use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::io;
-use std::path::Path;
 
 #[derive(Debug)]
 pub struct UndefinedType {
@@ -33,7 +37,7 @@ impl PkgLoader<'_> {
                 types_ids: Default::default(),
                 undefined_names: vec![],
                 file_ids: Default::default(),
-                pkg_ids: Default::default()
+                pkg_ids: Default::default(),
             },
         }
     }
@@ -64,13 +68,17 @@ impl PkgLoader<'_> {
                 let mut parsed_file = parse_content(&content)?;
 
                 if !parsed_file.imports.is_empty() {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "we don't support imports yet!"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "we don't support imports yet!",
+                    ));
                 }
 
-                self.state.load_file(entry_point.display().to_string(), &mut parsed_file);
+                self.state
+                    .load_file(entry_point.display().to_string(), &mut parsed_file);
 
-                // remove lifetime dependency with `content`, so that we can share the same buffer
-                // with all files.
+                // remove lifetime dependency with `content`, so that we can share the same
+                // buffer with all files.
                 //
                 // SAFETY: `loaded_files` will be dropped before `content`.
                 loaded_files.push(unsafe { std::mem::transmute::<_, File<'static>>(parsed_file) })
@@ -90,7 +98,7 @@ struct PkgLoaderState {
     types_ids: HashMap<String, Id>,
     undefined_names: Vec<UndefinedType>,
     file_ids: HashMap<String, Id>,
-    pkg_ids: HashMap<String, Id>
+    pkg_ids: HashMap<String, Id>,
 }
 
 impl PkgLoaderState {
@@ -105,7 +113,12 @@ impl PkgLoaderState {
 
         let mut scope = Scope::new(full_ident_to_string(&parsed_file.package));
         self.load_parsed_messages(&mut scope, &mut parsed_file.messages, file_id, None);
-        self.load_parsed_enums(&mut scope, std::mem::take(&mut parsed_file.enums), file_id, None);
+        self.load_parsed_enums(
+            &mut scope,
+            std::mem::take(&mut parsed_file.enums),
+            file_id,
+            None,
+        );
 
         let pkg_name = full_ident_to_string(&parsed_file.package);
         if let Some(pkg_id) = self.pkg_ids.get(&pkg_name) {
@@ -124,7 +137,13 @@ impl PkgLoaderState {
         dbg!(&self.graph);
     }
 
-    fn load_parsed_messages(&mut self, scope: &mut Scope, msgs: &mut [Message], file_id: Id, par_id: Option<Id>) {
+    fn load_parsed_messages(
+        &mut self,
+        scope: &mut Scope,
+        msgs: &mut [Message],
+        file_id: Id,
+        par_id: Option<Id>,
+    ) {
         for parsed_msg in msgs {
             let abs_name = scope.relative_to_absolute(parsed_msg.name);
             let msg = self.graph.define_message(abs_name.clone());
@@ -143,12 +162,23 @@ impl PkgLoaderState {
 
             scope.push_scope(parsed_msg.name);
             self.load_parsed_messages(scope, &mut parsed_msg.messages, file_id, Some(msg_id));
-            self.load_parsed_enums(scope, std::mem::take(&mut parsed_msg.enums), file_id, Some(msg_id));
+            self.load_parsed_enums(
+                scope,
+                std::mem::take(&mut parsed_msg.enums),
+                file_id,
+                Some(msg_id),
+            );
             scope.pop_scope();
         }
     }
 
-    fn load_parsed_enums(&mut self, scope: &Scope, enums: Vec<Enum>, file_id: Id, msg_id: Option<Id>) {
+    fn load_parsed_enums(
+        &mut self,
+        scope: &Scope,
+        enums: Vec<Enum>,
+        file_id: Id,
+        msg_id: Option<Id>,
+    ) {
         for parsed_enum in enums {
             let abs_name = scope.relative_to_absolute(parsed_enum.name);
             let enum_ = self.graph.define_enum(abs_name.clone());
@@ -225,7 +255,12 @@ impl PkgLoaderState {
         }
     }
 
-    fn translate_field(&mut self, scope: &Scope, parsed_field: AstField, msg_id: Id) -> Option<Field> {
+    fn translate_field(
+        &mut self,
+        scope: &Scope,
+        parsed_field: AstField,
+        msg_id: Id,
+    ) -> Option<Field> {
         let mut field = Field {
             name: parsed_field.name.to_string(),
             number: parsed_field.num,
@@ -250,8 +285,8 @@ impl PkgLoaderState {
                 let name = full_ident_to_string(&ident);
                 let abs_name = scope.relative_to_absolute(&name);
 
-                // First search in the current scope, then in the global scope, if we didn't found,
-                // search in parents.
+                // First search in the current scope, then in the global scope, if we didn't
+                // found, search in parents.
                 let typ_id = if let Some(id) = self.types_ids.get(&abs_name) {
                     *id
                 } else if let Some(id) = self.types_ids.get(&abs_name) {
@@ -279,7 +314,8 @@ impl PkgLoaderState {
                 };
 
                 if self.graph.message(typ_id).is_some() {
-                    self.graph.add_msg_usage_ref(msg_id, typ_id, field.name.clone());
+                    self.graph
+                        .add_msg_usage_ref(msg_id, typ_id, field.name.clone());
                 }
 
                 typ::Value::Custom(typ_id)

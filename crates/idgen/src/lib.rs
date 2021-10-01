@@ -9,7 +9,7 @@ pub trait IdGenerator {
 /// An [`IdGenerator`] that generate Ids sequentially.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SequentialGenerator {
-    next_value: Id
+    next_value: Id,
 }
 
 impl IdGenerator for SequentialGenerator {

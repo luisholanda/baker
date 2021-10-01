@@ -1,6 +1,4 @@
-const PROTOS: &[&str] = &[
-"../../protos/baker/pkg/v1/package.proto"
-];
+const PROTOS: &[&str] = &["../../protos/baker/pkg/v1/package.proto"];
 
 fn main() -> std::io::Result<()> {
     let mut prost_build = prost_build::Config::new();

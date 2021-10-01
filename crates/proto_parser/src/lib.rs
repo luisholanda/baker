@@ -28,12 +28,8 @@ pub mod tokens;
 /// Parse a file's content into a protobuf [`File`].
 pub fn parse_file(input: &str) -> std::result::Result<File, nom::Err<nom::error::Error<&str>>> {
     let (s, comments) = comments(input)?;
-    let (mut s, (_, package, imports, options)) = sequence::tuple((
-        syntax,
-        package,
-        multi::many0(import),
-        multi::many0(option),
-    ))(s)?;
+    let (mut s, (_, package, imports, options)) =
+        sequence::tuple((syntax, package, multi::many0(import), multi::many0(option)))(s)?;
 
     let mut file = File {
         comments,
@@ -64,7 +60,7 @@ pub fn parse_file(input: &str) -> std::result::Result<File, nom::Err<nom::error:
             }
             Err(e) => {
                 if let Some(err) = error {
-                    return Err(err)
+                    return Err(err);
                 } else {
                     error = Some(e)
                 }
@@ -77,8 +73,7 @@ pub fn parse_file(input: &str) -> std::result::Result<File, nom::Err<nom::error:
     Ok(file)
 }
 
-use self::ast::*;
-use self::lexer::*;
+use self::{ast::*, lexer::*};
 
 type Result<'a, T> = IResult<&'a str, T>;
 
@@ -886,24 +881,24 @@ mod tests {
     #[test]
     fn test_service() {
         test_parser! {
-                    service,
-                    "service SearchService {
+            service,
+            "service SearchService {
                 rpc Search(SearchRequest) returns (SearchResponse);
             }" => Service {
+                comments: vec![],
+                name: "SearchService",
+                rpcs: vec![
+                    Rpc {
                         comments: vec![],
-                        name: "SearchService",
-                        rpcs: vec![
-                            Rpc {
-                                comments: vec![],
-                                name: "Search",
-                                request: FieldType::Custom(vec!["SearchRequest"]),
-                                response: FieldType::Custom(vec!["SearchResponse"]),
-                                options: vec![]
-                            }
-                        ],
+                        name: "Search",
+                        request: FieldType::Custom(vec!["SearchRequest"]),
+                        response: FieldType::Custom(vec!["SearchResponse"]),
                         options: vec![]
-                    },
-                }
+                    }
+                ],
+                options: vec![]
+            },
+        }
     }
 
     #[test]
@@ -929,63 +924,54 @@ service BlaService {
             "#;
         let output = parse_file(input).unwrap();
 
-        assert_eq!(output, File {
-            comments: vec![],
-            package: vec!["foo", "bar", "v1"],
-            imports: vec!["other.proto".to_string()],
-            options: vec![(vec!["bla"], Constant::FloatLit(1.0))],
-            enums: vec![
-                Enum {
+        assert_eq!(
+            output,
+            File {
+                comments: vec![],
+                package: vec!["foo", "bar", "v1"],
+                imports: vec!["other.proto".to_string()],
+                options: vec![(vec!["bla"], Constant::FloatLit(1.0))],
+                enums: vec![Enum {
                     comments: vec![],
                     name: "Foo",
                     options: vec![],
-                    values: vec![
-                        EnumValue {
-                            comments: vec![],
-                            name: "BAR",
-                            value: 1,
-                            options: vec![],
-                        }
-                    ],
-                }
-            ],
-            messages: vec![
-                Message {
+                    values: vec![EnumValue {
+                        comments: vec![],
+                        name: "BAR",
+                        value: 1,
+                        options: vec![],
+                    }],
+                }],
+                messages: vec![Message {
                     comments: vec![],
                     name: "Bla",
-                    fields: vec![
-                        Field {
-                            comments: vec![],
-                            key_type: None,
-                            type_: FieldType::Custom(vec!["Foo"]),
-                            name: "foo",
-                            num: 1,
-                            options: vec![],
-                            label: None
-                        }
-                    ],
+                    fields: vec![Field {
+                        comments: vec![],
+                        key_type: None,
+                        type_: FieldType::Custom(vec!["Foo"]),
+                        name: "foo",
+                        num: 1,
+                        options: vec![],
+                        label: None
+                    }],
                     oneofs: vec![],
                     enums: vec![],
                     messages: vec![],
                     options: vec![],
-                }
-            ],
-            services: vec![
-                Service {
+                }],
+                services: vec![Service {
                     comments: vec![],
                     name: "BlaService",
-                    rpcs: vec![
-                        Rpc {
-                            comments: vec![],
-                            name: "Bla",
-                            request: FieldType::Custom(vec!["Bla"]),
-                            response: FieldType::Custom(vec!["Bla"]),
-                            options: vec![],
-                        }
-                    ],
+                    rpcs: vec![Rpc {
+                        comments: vec![],
+                        name: "Bla",
+                        request: FieldType::Custom(vec!["Bla"]),
+                        response: FieldType::Custom(vec!["Bla"]),
+                        options: vec![],
+                    }],
                     options: vec![]
-                }
-            ]
-        });
+                }]
+            }
+        );
     }
 }

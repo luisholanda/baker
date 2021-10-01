@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate clap;
 
+use std::{collections::HashSet, path::PathBuf};
+
 use baker_pkg_loader::PkgLoader;
 use clap::Arg;
-use std::{collections::HashSet, path::PathBuf};
 
 fn main() -> std::io::Result<()> {
     let app = app_from_crate!()

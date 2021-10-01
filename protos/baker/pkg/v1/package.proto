@@ -1,3 +1,6 @@
+// # Baker package interface
+//
+// The interfaces defined here are used when handling model files received from the user.
 syntax = "proto3";
 
 package baker.pkg.v1;
@@ -251,13 +254,13 @@ message Option {
 
       // A uninterpreted value.
       string uninterpreted_value = 7;
-    }
+    };
   }
 }
 
 // A protobuf type.
 message Type {
-  /// Possible builtin types.
+  // Possible builtin types.
   enum BuiltIn {
     UNKNOWN = 0;
     // Double point precision.

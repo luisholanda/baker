@@ -1,12 +1,10 @@
-use nom::InputIter;
-use nom::InputLength;
-use nom::InputTake;
-use nom::Needed;
-use nom::Slice;
-use std::iter::Enumerate;
-use std::ops::Index;
-use std::ops::{Range, RangeFrom, RangeFull, RangeTo};
-use std::slice::Iter;
+use std::{
+    iter::Enumerate,
+    ops::{Index, Range, RangeFrom, RangeFull, RangeTo},
+    slice::Iter,
+};
+
+use nom::{InputIter, InputLength, InputTake, Needed, Slice};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token<'i> {
