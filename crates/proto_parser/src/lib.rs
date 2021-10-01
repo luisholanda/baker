@@ -45,13 +45,14 @@ pub fn parse_file(input: &str) -> std::result::Result<File, nom::Err<nom::error:
         services: vec![],
     };
 
+    let mut error = None;
     while !s.is_empty() {
-        if let Ok((ns, m)) = message(s) {
+        while let Ok((ns, m)) = message(s) {
             s = ns;
             file.messages.push(m);
         }
 
-        if let Ok((ns, e)) = enum_(s) {
+        while let Ok((ns, e)) = enum_(s) {
             s = ns;
             file.enums.push(e);
         }
@@ -61,11 +62,16 @@ pub fn parse_file(input: &str) -> std::result::Result<File, nom::Err<nom::error:
                 s = ns;
                 file.services.push(srv);
             }
-            Err(e) => return Err(e)
+            Err(e) => {
+                if let Some(err) = error {
+                    return Err(err)
+                } else {
+                    error = Some(e)
+                }
+            }
         }
 
         s = s.trim_end();
-        dbg!(s);
     }
 
     Ok(file)
@@ -280,7 +286,7 @@ fn oneof_field(input: &str) -> Result<OneOf> {
             nom::error::ErrorKind::Fail,
         )))
     } else {
-        let (s, _) = CLOSE_BRACE(s)?;
+        let (s, _) = sequence::pair(CLOSE_BRACE, SEMI_COLON)(s)?;
 
         Ok((
             s,
@@ -363,6 +369,7 @@ fn enum_field(input: &str) -> Result<EnumValue> {
 }
 
 fn message(input: &str) -> Result<Message> {
+    #[derive(Debug)]
     enum MessageEvent<'i> {
         Field(Field<'i>),
         Enum(Enum<'i>),
@@ -626,7 +633,7 @@ mod tests {
             "// bla\noneof bla {
                 option bla = true;
                 bool field = 1;
-            }" => OneOf {
+            };" => OneOf {
                 comments: vec!["bla"],
                 name: "bla",
                 options: vec![(vec!["bla"], Constant::BoolLit(true))],

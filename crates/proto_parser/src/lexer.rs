@@ -79,7 +79,7 @@ fn hex_digit(input: &str) -> IResult<&str, char> {
 }
 
 fn comment(input: &str) -> Result {
-    let prefix = sequence::pair(bytes::tag("//"), character::space1);
+    let prefix = sequence::tuple((character::space0, bytes::tag("//"), character::space0));
     let line = sequence::preceded(prefix, character::not_line_ending);
     let mut lines = multi::separated_list0(character::line_ending, line);
     let (s, comments) = lines(input)?;
@@ -268,6 +268,7 @@ mod tests {
     #[test]
     fn test_comment() {
         assert_output!(comment, "// bla\n// foobar", Token::Comment(vec!["bla", "foobar"]));
+        assert_output!(comment, "// bla\n//\n// foobar", Token::Comment(vec!["bla", "", "foobar"]));
     }
 
     #[test]
