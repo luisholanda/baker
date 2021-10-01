@@ -7,7 +7,7 @@ pub trait IdGenerator {
 }
 
 /// An [`IdGenerator`] that generate Ids sequentially.
-#[derive(Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct SequentialGenerator {
     next_value: Id
 }

@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 baker_pkg_loader = { path = "../baker_pkg_loader" }
+clap = "2.33.3"

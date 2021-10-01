@@ -5,6 +5,7 @@ use petgraph::graphmap::DiGraphMap;
 /// A graph that represents if a node references another node.
 pub type ReferenceGraph<E = ()> = DiGraphMap<Id, E>;
 
+#[derive(Debug)]
 pub struct PkgGraph<IdGen> {
     /// The raw package graph.
     ///

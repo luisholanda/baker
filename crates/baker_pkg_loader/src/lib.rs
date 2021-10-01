@@ -11,6 +11,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+#[derive(Debug)]
 pub struct UndefinedType {
     pub location: String,
     pub typ: String,
@@ -61,6 +62,10 @@ impl PkgLoader<'_> {
                 fs::File::open(entry_point)?.read_to_string(&mut content)?;
 
                 let mut parsed_file = parse_content(&content)?;
+
+                if !parsed_file.imports.is_empty() {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, "we don't support imports yet!"));
+                }
 
                 self.state.load_file(entry_point.display().to_string(), &mut parsed_file);
 
@@ -116,6 +121,7 @@ impl PkgLoaderState {
     fn process_file(&mut self, parsed_file: File) {
         let mut scope = Scope::new(full_ident_to_string(&parsed_file.package));
         self.process_file_messages_fields(&mut scope, parsed_file.messages);
+        dbg!(&self.graph);
     }
 
     fn load_parsed_messages(&mut self, scope: &mut Scope, msgs: &mut [Message], file_id: Id, par_id: Option<Id>) {
@@ -177,6 +183,10 @@ impl PkgLoaderState {
     fn process_file_messages_fields(&mut self, scope: &mut Scope, messages: Vec<Message>) {
         for parsed_msg in messages {
             let abs_name = scope.relative_to_absolute(parsed_msg.name);
+            scope.push_scope(&parsed_msg.name);
+
+            self.process_file_messages_fields(scope, parsed_msg.messages);
+
             let &msg_id = self
                 .types_ids
                 .get(&abs_name)
@@ -207,7 +217,9 @@ impl PkgLoaderState {
                     .into_iter()
                     .filter_map(|f| self.translate_field(&scope, f, msg_id))
                     .collect();
+                msg.oneofs.push(oneof);
             }
+            scope.pop_scope();
 
             *self.graph.message_mut(msg_id).unwrap() = msg;
         }
@@ -248,7 +260,7 @@ impl PkgLoaderState {
                     let mut curr_scope = scope.clone();
                     let mut id = None;
 
-                    while !curr_scope.is_root() || id.is_none() {
+                    while !curr_scope.is_root() && id.is_none() {
                         curr_scope.pop_scope();
                         let name = curr_scope.relative_to_absolute(&name);
 
@@ -330,7 +342,7 @@ fn translate_builtin_type(typ: FieldType) -> typ::BuiltIn {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Scope {
     scope_name: String,
 }
@@ -346,9 +358,10 @@ impl Scope {
     }
 
     fn pop_scope(&mut self) {
-        let last_name_start = self.scope_name.rsplit_once('.').unwrap().1.len() + 1;
-        self.scope_name
-            .truncate(self.scope_name.len() - last_name_start);
+        if let Some((start, _)) = self.scope_name.rsplit_once('.') {
+            let len = start.len();
+            self.scope_name.truncate(len);
+        }
     }
 
     fn relative_to_absolute(&self, relative: &str) -> String {
@@ -356,6 +369,6 @@ impl Scope {
     }
 
     fn is_root(&self) -> bool {
-        self.scope_name.is_empty()
+        !self.scope_name.contains('.')
     }
 }
