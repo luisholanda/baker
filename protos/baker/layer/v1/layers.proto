@@ -14,13 +14,12 @@ message LayerRequest {
 
 // Response received by baker via the layer executable stdout.
 message LayerResponse {
-  // Error message. If non-empty, code generation failed. The plugin process
+  // Error message. If non-empty, IR generation failed. The layer process
   // should exit with status code zero even if it reports an error this way.
   //
   // This should be used to indicate errors in .proto files which prevent the
-  // code generator from generating correct code. Errors which  indicate a
-  // problem in baker itself should be reported vias tderr and a non-zero status
-  // code.
+  // layer from generating correct code. Errors which indicate a problem in baker
+  // itself should be reported via stderr and a non-zero status code.
   optional string error = 1;
 
   // Generated IR files.
