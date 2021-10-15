@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package baker.layer.v1;
+
+import "baker/ir/v1/file.proto";
+import "baker/pkg/v1/package.proto";
+
+// Request sent by baker to the layer executable in it's stdin.
+message LayerRequest {
+  // The packages processed. Layers should only generate code for
+  // files in `PackageGraph.main_files`.
+  baker.pkg.v1.PackageGraph packages = 1;
+}
+
+// Response received by baker via the layer executable stdout.
+message LayerResponse {
+  // Error message. If non-empty, code generation failed. The plugin process
+  // should exit with status code zero even if it reports an error this way.
+  //
+  // This should be used to indicate errors in .proto files which prevent the
+  // code generator from generating correct code. Errors which  indicate a
+  // problem in baker itself should be reported vias tderr and a non-zero status
+  // code.
+  optional string error = 1;
+
+  // Generated IR files.
+  //
+  // Multiple IR files may be generated for a single `PackageGraph` file. These
+  // will be merged by baker automatically.
+  repeated baker.ir.v1.IrFile ir_file = 2;
+}

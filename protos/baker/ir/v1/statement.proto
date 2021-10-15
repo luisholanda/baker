@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package baker.ir.v1;
+
+message Block {
+  repeated Statement statements = 1;
+}
+
+message Statement {
+  oneof statement {
+    string raw = 1;
+  };
+}

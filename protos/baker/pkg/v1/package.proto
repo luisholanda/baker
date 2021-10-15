@@ -111,7 +111,8 @@ message Enum {
   //
   // This include the entire scope of the enum, e.g. if a
   // enum `Bar` is defined inside a message `Foo`, this field
-  // will have value `Foo.Bar`.
+  // will have value `{pkg}.Foo.Bar`, where `{pkg}` is the package
+  // where `Foo` is defined.
   string name = 2;
 
   // All values in the enum.

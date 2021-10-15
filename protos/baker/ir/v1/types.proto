@@ -1,0 +1,237 @@
+syntax = "proto3";
+
+package baker.ir.v1;
+
+import "baker/ir/v1/statement.proto";
+import "baker/ir/v1/values.proto";
+
+// A type instance in the IR.
+message Type {
+  // Fundamental types of the language.
+  //
+  // These commonly have special type syntax in concrete languages.
+  enum Fundamental {
+    // Not set.
+    UNKNOWN = 0;
+    // A tuple type.
+    TUPLE = 1;
+    // A slice type.
+    SLICE = 2;
+    // A map type.
+    MAP = 3;
+    // A shared reference type.
+    SHRD_REF = 4;
+    // A unique reference type.
+    UNIQ_REF = 5;
+    // A constant pointer type.
+    CONST_PTR = 6;
+    // A common pointer type.
+    PTR = 7;
+  }
+
+  // Bounds added to a type.
+  message Bounds {
+    // Interfaces in the bound.
+    repeated Type interfaces = 2;
+    // Lifetimes in the bound.
+    repeated string lifetimes = 3;
+  }
+
+  // An interface base when refering to an associated type.
+  message InterfaceBase {
+    // The receiver type.
+    Type receiver = 1;
+    // The interface.
+    Type interface = 2;
+  }
+
+  // Name of the type. Should not be set if `fundamental` is set.
+  //
+  // To keep consistency between all layers, this field MUST _always_ be in
+  // `PascalCase`, even if it is a function declaration. Final code generators are
+  // responsible for converting the case to the appropriate case in their respective
+  // concrete languages.
+  string name = 1;
+
+  // The instance refers to a fundamental type.
+  Fundamental fundamental = 2;
+
+  // Any generic parameters associated with this type.
+  repeated Type generics = 3;
+
+  // Bounds of this type.
+  //
+  // Codegens should remember to generate these layers in every mention.
+  optional Bounds bounds = 5;
+
+  // Interface base of the type.
+  //
+  // Set when this instance refers to an associated type.
+  InterfaceBase base = 6;
+
+  // All lifetime parameters with this type.
+  repeated string lifetimes = 10;
+}
+
+// A type definition in the IR.
+message TypeDef {
+  // Record type definition.
+  message Record {
+    // A property inside a record.
+    message Property {
+      // The name of the property.
+      string name = 1;
+
+      // The type of the property.
+      Type type = 2;
+
+      // The visibility of the property.
+      Visibility visibility = 3;
+
+      // All attributes of the property.
+      //
+      // What this field means depends on the generated language, e.g.:
+      //   - In Rust, these should be added as attributes;
+      //   - In Python, Java, or JavaScript, these should be added as decorators;
+      //   - In Go, these can be added as metadata.
+      repeated FunctionCall attributes = 4;
+
+      // Documentation of this property.
+      string documentation = 5;
+    }
+
+    // All properties in the record.
+    repeated Property properties = 1;
+  }
+
+  // A sum type definition.
+  message Sum {
+    // A member of a sum type.
+    message Member {
+      // The name of the member.
+      string name = 1;
+
+      // The value of the member.
+      oneof value {
+        // A C-like value.
+        uint32 fixed = 2;
+        // A record value.
+        TypeDef.Record record = 3;
+        // A type reference.
+        Type type = 4;
+      };
+
+      // Attributes of this member.
+      repeated FunctionCall attributes = 5;
+
+      // Documentation of this member.
+      string documentation = 6;
+    }
+
+    // Members of the sum type.
+    repeated Member members = 1;
+  }
+
+  // A set of implementations for a type.
+  //
+  // This can be used to add methods to it, or to add an interface
+  // implementation.
+  message ImplBlock {
+    // The interface implemented by this block.
+    optional Type interface = 1;
+
+    // All methods defined in this block.
+    repeated Function methods = 2;
+
+    // All associated types needed for an interface implementation.
+    //
+    // This should not be set if `inferface` isn't set.
+    repeated TypeAlias assoc_types = 3;
+
+    // TODO(impls): handle constants.
+  }
+
+  // The type header.
+  Type header = 1;
+
+  // The type definition itself.
+  oneof definition {
+    // The type is a record (e.g. struct, data, class, etc.).
+    Record record = 2;
+
+    // The type is a sum type (C-like enums, Haskell-like enums, etc.).
+    Sum sum = 3;
+  };
+
+  // All attributes in the type definition.
+  repeated FunctionCall attributes = 5;
+
+  // All implementation blocks for this type.
+  repeated ImplBlock blocks = 6;
+
+  // Documentation of the type.
+  string documentation = 7;
+}
+
+// A type alias.
+message TypeAlias {
+  // The alias type.
+  Type alias = 1;
+
+  // The aliased type.
+  Type aliased = 2;
+
+  // The alias visibility.
+  Visibility visibility = 4;
+
+  // The alias documentation.
+  string documentation = 5;
+}
+
+// A function definition.
+message Function {
+  // The function header.
+  Type header = 1;
+  // The return type.
+  Type return = 2;
+
+  // Function visibility.
+  Visibility visibility = 3;
+
+  // Function implementation.
+  Block implementation = 4;
+
+  // The receiver of the method.
+  //
+  // If not set, this is a static function.
+  optional Type receiver = 5;
+
+  // Function documentation.
+  string documentation = 6;
+}
+
+// An interface definition.
+message Interface {
+  // Interface header.
+  Type header = 1;
+
+  // Methods in the interface.
+  repeated Function methods = 2;
+
+  // Associated types in this interface.
+  repeated Type assoc_types = 3;
+
+  // Interface documentation.
+  string documentation = 4;
+
+  // TODO(impls): handle constants
+}
+
+// Possible visibility levels.
+enum Visibility {
+  UNKNOWN = 0;
+  PUBLIC = 1;
+  PRIVATE = 2;
+  PROTECTED = 3;
+  PACKAGE = 4;
+}
