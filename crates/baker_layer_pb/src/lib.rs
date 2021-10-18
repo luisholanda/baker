@@ -25,7 +25,7 @@ where
 
     use prost::Message;
 
-    let mut buf = vec![0; 4096];
+    let mut buf = Vec::with_capacity(4096);
 
     let n = std::io::stdin().read_to_end(&mut buf)?;
 
@@ -35,10 +35,7 @@ where
     let resp = layer_fn(req)?;
 
     buf.clear();
-
-    buf.resize(resp.encoded_len(), 0);
-
     resp.encode(&mut buf).unwrap();
 
-    std::io::stdout().write_all(&buf)
+    std::io::stdout().write_all(&buf[..resp.encoded_len()])
 }

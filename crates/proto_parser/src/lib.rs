@@ -256,6 +256,7 @@ fn field_type(input: &str) -> Result<FieldType> {
 
 fn field_options(input: &str) -> Result<Options> {
     let options = multi::separated_list1(COMMA, field_option);
+    let options = sequence::terminated(options, combinator::opt(COMMA));
 
     let (s, options) =
         combinator::opt(sequence::delimited(OPEN_BRACKET, options, CLOSE_BRACKET))(input)?;

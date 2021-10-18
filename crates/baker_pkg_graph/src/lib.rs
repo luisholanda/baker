@@ -35,6 +35,11 @@ impl<IG> PkgGraph<IG> {
         }
     }
 
+    /// Convert this graph into its Protocol Buffers representation.
+    pub fn into_pb(self) -> PackageGraph {
+        self.pb
+    }
+
     /// Get a [`Message`] with the given [`Id`].
     pub fn message(&self, msg_id: Id) -> Option<&Message> {
         self.pb.messages.get(&msg_id)
@@ -153,5 +158,11 @@ impl<IG> PkgGraph<IG> {
     /// later.
     pub fn add_msg_usage_ref(&mut self, source: Id, uses: Id, field: String) {
         self.message_use_graph.add_edge(source, uses, field);
+    }
+
+    /// Set the given source file as a main file.
+    pub fn set_as_main_file(&mut self, file: Id) {
+        assert!(self.files_import_graph.contains_node(file));
+        self.pb.main_files.push(file);
     }
 }

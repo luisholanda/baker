@@ -1,0 +1,9 @@
+[package]
+name = "baker_ir_merger"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+baker_ir_pb = { path = "../baker_ir_pb" }

@@ -1,4 +1,4 @@
-use std::io;
+use std::{collections::HashMap, io};
 
 use baker_ir_pb::{
     r#type::Fundamental,
@@ -42,13 +42,16 @@ fn generate_file(file: File, graph: &mut PackageGraph) -> io::Result<IrFile> {
 
     for msg in file.root_messages {
         let mut msg = graph.messages.remove(&msg).expect("message not found");
+        let namespace_name = msg.name.rsplit_once('.').unwrap().1.to_string();
+        let nested = generate_msg_namespace(&msg, graph)?;
+
+        if nested != Namespace::default() {
+            root.nested_namespaces.insert(namespace_name, nested);
+        }
+
         let def = generate_message_type(&mut msg, graph)?;
 
         root.types.push(def);
-
-        let nested = generate_msg_namespace(&msg, graph)?;
-        let namespace_name = msg.name.rsplit_once('.').unwrap().1.to_string();
-        root.nested_namespaces.insert(namespace_name, nested);
 
         graph.messages.insert(msg.id, msg);
     }
@@ -71,36 +74,40 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
         Visibility::Public
     };
 
-    let mut properties = Vec::with_capacity(msg.fields.len());
+    let mut properties = HashMap::with_capacity(msg.fields.len());
     for mut field in msg.fields.drain(..) {
-        properties.push(Property {
-            name: std::mem::take(&mut field.name),
-            r#type: Some(translate_field_type(&field, graph)),
-            documentation: field.documentation.unwrap_or_default(),
-            visibility: if let Some(val) = field.options.remove(FIELD_VISIBILITY_OPTION) {
-                translate_visibility_opt(val, FIELD_VISIBILITY_OPTION)?
-            } else {
-                default_visibility
-            } as i32,
-            ..Default::default()
-        });
+        properties.insert(
+            std::mem::take(&mut field.name),
+            Property {
+                r#type: Some(translate_field_type(&field, graph)),
+                documentation: field.documentation.unwrap_or_default(),
+                visibility: if let Some(val) = field.options.remove(FIELD_VISIBILITY_OPTION) {
+                    translate_visibility_opt(val, FIELD_VISIBILITY_OPTION)?
+                } else {
+                    default_visibility
+                } as i32,
+                ..Default::default()
+            },
+        );
     }
 
     for oneof in &msg.oneofs {
-        properties.push(Property {
-            name: oneof.name.clone(),
-            r#type: Some(Type {
-                name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
+        properties.insert(
+            oneof.name.clone(),
+            Property {
+                r#type: Some(Type {
+                    name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
+                    ..Default::default()
+                }),
+                documentation: oneof.documentation.clone().unwrap_or_default(),
+                visibility: if let Some(val) = oneof.options.get(FIELD_VISIBILITY_OPTION) {
+                    translate_visibility_opt(val.clone(), FIELD_VISIBILITY_OPTION)?
+                } else {
+                    default_visibility
+                } as i32,
                 ..Default::default()
-            }),
-            documentation: oneof.documentation.clone().unwrap_or_default(),
-            visibility: if let Some(val) = oneof.options.get(FIELD_VISIBILITY_OPTION) {
-                translate_visibility_opt(val.clone(), FIELD_VISIBILITY_OPTION)?
-            } else {
-                default_visibility
-            } as i32,
-            ..Default::default()
-        });
+            },
+        );
     }
 
     // Generated oneof enums don't implement Default.
@@ -115,10 +122,11 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
 
     Ok(TypeDef {
         header: Some(Type {
-            name: std::mem::take(&mut msg.name),
+            name: msg.name.clone(),
             ..Default::default()
         }),
         definition: Some(Definition::Record(Record { properties })),
+        documentation: msg.documentation.take().unwrap_or_default(),
         attributes: vec![derive_call(default_traits)],
         visibility: Visibility::Public as i32,
         ..Default::default()
@@ -200,12 +208,14 @@ fn generate_msg_namespace(msg: &Message, graph: &mut PackageGraph) -> io::Result
 
     for n_msg_id in &msg.messages {
         let mut msg = graph.messages.remove(n_msg_id).expect("message not found");
-        let def = generate_message_type(&mut msg, &graph)?;
-
         let nested = generate_msg_namespace(&msg, graph)?;
 
         let namespace_name = msg.name.rsplit_once('.').unwrap().1.to_string();
-        namespace.nested_namespaces.insert(namespace_name, nested);
+        if nested != Namespace::default() {
+            namespace.nested_namespaces.insert(namespace_name, nested);
+        }
+
+        let def = generate_message_type(&mut msg, &graph)?;
         namespace.types.push(def);
 
         graph.messages.insert(*n_msg_id, msg);
@@ -219,14 +229,14 @@ fn generate_msg_namespace(msg: &Message, graph: &mut PackageGraph) -> io::Result
     }
 
     for oneof in &msg.oneofs {
-        let def = generate_oneof_type(oneof, &graph);
+        let def = generate_oneof_type(oneof, msg, &graph);
         namespace.types.push(def);
     }
 
     Ok(namespace)
 }
 
-fn generate_oneof_type(oneof: &OneOf, graph: &PackageGraph) -> TypeDef {
+fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> TypeDef {
     let mut members = Vec::with_capacity(oneof.fields.len());
 
     for f in &oneof.fields {
@@ -242,7 +252,7 @@ fn generate_oneof_type(oneof: &OneOf, graph: &PackageGraph) -> TypeDef {
 
     TypeDef {
         header: Some(Type {
-            name: oneof.name.to_camel_case(),
+            name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
             ..Default::default()
         }),
         definition: Some(Definition::Sum(Sum { members })),

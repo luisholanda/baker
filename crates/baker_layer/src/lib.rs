@@ -4,7 +4,8 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-use baker_layer_pb::{LayerRequest, LayerResponse};
+pub use baker_layer_pb::LayerRequest;
+use baker_layer_pb::LayerResponse;
 use prost::Message;
 
 /// A code generation layer.
@@ -27,11 +28,7 @@ impl Layer {
     pub fn execute(&self, req: &LayerRequest) -> io::Result<LayerResponse> {
         let mut layer_proc = self.spawn()?;
 
-        let res = do_layer_flow(&mut layer_proc, req);
-
-        layer_proc.kill()?;
-
-        res
+        do_layer_flow(&mut layer_proc, req)
     }
 
     fn cmd(&self) -> Command {
@@ -54,6 +51,11 @@ fn do_layer_flow(proc: &mut Child, req: &LayerRequest) -> io::Result<LayerRespon
     proc.stdin.take().unwrap().write_all(&buf)?;
 
     buf.clear();
+
+    let status = proc.wait()?;
+    if !status.success() {
+        io::Error::new(io::ErrorKind::Other, "Layer failed to execute");
+    }
 
     let n = proc.stdout.take().unwrap().read_to_end(&mut buf)?;
 

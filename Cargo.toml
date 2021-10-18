@@ -1,2 +1,3 @@
 [workspace]
 members = ["codegens/*", "crates/*", "layers/*"]
+default-members = ["crates/baker"]

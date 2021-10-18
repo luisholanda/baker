@@ -99,14 +99,11 @@ message TypeDef {
   message Record {
     // A property inside a record.
     message Property {
-      // The name of the property.
-      string name = 1;
-
       // The type of the property.
-      Type type = 2;
+      Type type = 1;
 
       // The visibility of the property.
-      Visibility visibility = 3;
+      Visibility visibility = 2;
 
       // All attributes of the property.
       //
@@ -114,14 +111,14 @@ message TypeDef {
       //   - In Rust, these should be added as attributes;
       //   - In Python, Java, or JavaScript, these should be added as decorators;
       //   - In Go, these can be added as metadata.
-      repeated FunctionCall attributes = 4;
+      repeated FunctionCall attributes = 3;
 
       // Documentation of this property.
-      string documentation = 5;
+      string documentation = 4;
     }
 
     // All properties in the record.
-    repeated Property properties = 1;
+    map<string, Property> properties = 1;
   }
 
   // A sum type definition.
@@ -267,8 +264,8 @@ message Interface {
 // Possible visibility levels.
 enum Visibility {
   UNKNOWN = 0;
-  PUBLIC = 1;
-  PRIVATE = 2;
-  PROTECTED = 3;
-  PACKAGE = 4;
+  PRIVATE = 1;
+  PROTECTED = 2;
+  PACKAGE = 3;
+  PUBLIC = 4;
 }

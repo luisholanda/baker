@@ -74,8 +74,10 @@ impl PkgLoader<'_> {
                     ));
                 }
 
-                self.state
+                let file_id = self
+                    .state
                     .load_file(entry_point.display().to_string(), &mut parsed_file);
+                self.state.graph.set_as_main_file(file_id);
 
                 // remove lifetime dependency with `content`, so that we can share the same
                 // buffer with all files.
@@ -90,6 +92,10 @@ impl PkgLoader<'_> {
         }
 
         Ok(())
+    }
+
+    pub fn graph(self) -> PkgGraph<SequentialGenerator> {
+        self.state.graph
     }
 }
 
@@ -134,7 +140,6 @@ impl PkgLoaderState {
     fn process_file(&mut self, parsed_file: File) {
         let mut scope = Scope::new(full_ident_to_string(&parsed_file.package));
         self.process_file_messages_fields(&mut scope, parsed_file.messages);
-        dbg!(&self.graph);
     }
 
     fn load_parsed_messages(

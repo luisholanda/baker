@@ -6,5 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+baker_ir_merger = { path = "../baker_ir_merger" }
+baker_layer = { path = "../baker_layer" }
 baker_pkg_loader = { path = "../baker_pkg_loader" }
 clap = "2.33.3"
