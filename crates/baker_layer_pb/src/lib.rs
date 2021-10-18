@@ -15,3 +15,30 @@ mod baker {
 }
 
 pub use self::baker::layer::v1::*;
+
+/// Executes the entire flow of a layer.
+pub fn execute_flow<F>(layer_fn: F) -> std::io::Result<()>
+where
+    F: FnOnce(LayerRequest) -> std::io::Result<LayerResponse>,
+{
+    use std::io::{Read, Write};
+
+    use prost::Message;
+
+    let mut buf = vec![0; 4096];
+
+    let n = std::io::stdin().read_to_end(&mut buf)?;
+
+    let req = LayerRequest::decode(&buf[..n])
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+
+    let resp = layer_fn(req)?;
+
+    buf.clear();
+
+    buf.resize(resp.encoded_len(), 0);
+
+    resp.encode(&mut buf).unwrap();
+
+    std::io::stdout().write_all(&buf)
+}

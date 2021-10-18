@@ -15,8 +15,8 @@ message Type {
     UNKNOWN = 0;
     // A tuple type.
     TUPLE = 1;
-    // A slice type.
-    SLICE = 2;
+    // A vector type.
+    VEC = 2;
     // A map type.
     MAP = 3;
     // A shared reference type.
@@ -27,6 +27,26 @@ message Type {
     CONST_PTR = 6;
     // A common pointer type.
     PTR = 7;
+    // Double point precision.
+    DOUBLE = 8;
+    // Single point precision.
+    FLOAT = 9;
+    // Signed int.
+    S_INT = 10;
+    // Signed long.
+    S_LONG = 11;
+    // Unsigned int.
+    U_INT = 12;
+    // Unsigned long.
+    U_LONG = 13;
+    // Bool.
+    BOOL = 14;
+    // String.
+    STRING = 15;
+    // Bytes.
+    BYTES = 16;
+    // Optional types.
+    OPTIONAL = 17;
   }
 
   // Bounds added to a type.
@@ -114,7 +134,7 @@ message TypeDef {
       // The value of the member.
       oneof value {
         // A C-like value.
-        uint32 fixed = 2;
+        int32 fixed = 2;
         // A record value.
         TypeDef.Record record = 3;
         // A type reference.
@@ -171,6 +191,8 @@ message TypeDef {
 
   // Documentation of the type.
   string documentation = 7;
+
+  Visibility visibility = 8;
 }
 
 // A type alias.
@@ -190,8 +212,20 @@ message TypeAlias {
 
 // A function definition.
 message Function {
+  message Argument {
+    enum ArgType {
+      POSITIONAL = 0;
+      KEYWORD = 1;
+    }
+
+    string name = 1;
+    ArgType arg_type = 2;
+    Type type = 3;
+  }
+
   // The function header.
   Type header = 1;
+
   // The return type.
   Type return = 2;
 
@@ -208,6 +242,9 @@ message Function {
 
   // Function documentation.
   string documentation = 6;
+
+  // Arguments of the function.
+  repeated Argument arguments = 7;
 }
 
 // An interface definition.

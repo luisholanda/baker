@@ -13,6 +13,8 @@ message Value {
     string raw = 1;
     // A function call.
     FunctionCall call = 2;
+    // An identifier.
+    string identifier = 3;
   };
 }
 

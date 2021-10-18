@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package baker.ir.v1;
 
+import "baker/ir/v1/values.proto";
+
 message Block {
   repeated Statement statements = 1;
 }
@@ -9,5 +11,6 @@ message Block {
 message Statement {
   oneof statement {
     string raw = 1;
+    Value return = 2;
   };
 }

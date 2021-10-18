@@ -26,5 +26,5 @@ message LayerResponse {
   //
   // Multiple IR files may be generated for a single `PackageGraph` file. These
   // will be merged by baker automatically.
-  repeated baker.ir.v1.IrFile ir_file = 2;
+  repeated baker.ir.v1.IrFile ir_files = 2;
 }

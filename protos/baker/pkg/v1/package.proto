@@ -269,13 +269,13 @@ message Type {
     // Single point precision.
     FLOAT = 2;
     // Signed int.
-    SINT = 3;
+    S_INT = 3;
     // Signed long.
-    SLONG = 4;
+    S_LONG = 4;
     // Unsigned int.
-    UINT = 5;
+    U_INT = 5;
     // Unsigned long.
-    ULONG = 6;
+    U_LONG = 6;
     // Bool.
     BOOL = 7;
     // String.

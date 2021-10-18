@@ -55,8 +55,8 @@ fn do_layer_flow(proc: &mut Child, req: &LayerRequest) -> io::Result<LayerRespon
 
     buf.clear();
 
-    proc.stdout.take().unwrap().read_to_end(&mut buf)?;
+    let n = proc.stdout.take().unwrap().read_to_end(&mut buf)?;
 
-    LayerResponse::decode(&mut &buf[..])
+    LayerResponse::decode(&mut &buf[..n])
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
 }

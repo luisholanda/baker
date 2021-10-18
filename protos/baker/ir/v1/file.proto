@@ -11,12 +11,20 @@ message IrFile {
   // Package graph file id associated with this IR file.
   uint32 file_id = 1;
 
+  // Root namespace of the file.
+  Namespace root = 2;
+}
+
+message Namespace {
   // All generated types.
-  repeated Type types = 2;
+  repeated TypeDef types = 2;
   // All generated aliases.
   repeated TypeAlias aliases = 3;
   // All generated interfaces.
   repeated Interface interfaces = 4;
   // Free-standing functions.
   repeated Function functions = 5;
+
+  // Nested namespaces declared inside this namespace.
+  map<string, Namespace> nested_namespaces = 6;
 }
