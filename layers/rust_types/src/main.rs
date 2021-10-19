@@ -3,7 +3,8 @@ use std::{collections::HashMap, io};
 use baker_ir_pb::{
     r#type::Fundamental,
     type_def::{record::Property, sum::Member, Definition, ImplBlock, Record, Sum},
-    Block, Function, FunctionCall, IrFile, Namespace, Statement, Type, TypeDef, Value, Visibility,
+    Attribute, Block, Function, FunctionCall, IrFile, Namespace, Statement, Type, TypeDef, Value,
+    Visibility,
 };
 use baker_layer_pb::{LayerRequest, LayerResponse};
 use baker_pkg_pb::{
@@ -169,11 +170,10 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
                     ..Default::default()
                 }),
                 implementation: Some(Block {
-                    statements: vec![Statement {
-                        statement: Some(baker_ir_pb::statement::Statement::Return(Value {
-                            value: Some(baker_ir_pb::value::Value::Identifier(default_member)),
-                        })),
-                    }],
+                    statements: vec![],
+                    return_value: Some(Value {
+                        value: Some(baker_ir_pb::value::Value::Identifier(default_member)),
+                    }),
                 }),
                 r#return: Some(enum_type.clone()),
                 ..Default::default()
@@ -360,16 +360,19 @@ fn translate_visibility_opt(val: baker_pkg_pb::option::Value, opt: &str) -> io::
     Ok(visibility)
 }
 
-fn derive_call(traits: &[&str]) -> FunctionCall {
-    FunctionCall {
-        function: "derive".to_string(),
-        args: traits
-            .iter()
-            .map(|t| Value {
-                value: Some(baker_ir_pb::value::Value::Identifier(t.to_string())),
-            })
-            .collect(),
-        ..Default::default()
+fn derive_call(traits: &[&str]) -> Attribute {
+    use baker_ir_pb::attribute::Value as AttrValue;
+    Attribute {
+        value: Some(AttrValue::Call(FunctionCall {
+            function: "derive".to_string(),
+            args: traits
+                .iter()
+                .map(|t| Value {
+                    value: Some(baker_ir_pb::value::Value::Identifier(t.to_string())),
+                })
+                .collect(),
+            ..Default::default()
+        })),
     }
 }
 

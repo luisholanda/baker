@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use baker_ir_pb::{type_def::Definition, FunctionCall, IrFile, Namespace, TypeDef};
+use baker_ir_pb::{type_def::Definition, Attribute, IrFile, Namespace, TypeDef};
 
 // A type that can merge [`IrFile`] definitions of multiple layers
 // into a single definition.
@@ -90,7 +90,7 @@ fn merge_type_def(prev: &mut TypeDef, new: TypeDef) {
     }
 }
 
-fn merge_attributes(prev: &mut Vec<FunctionCall>, new: Vec<FunctionCall>) {
+fn merge_attributes(prev: &mut Vec<Attribute>, new: Vec<Attribute>) {
     // TODO: think better on how to merge attributes.
     prev.extend(new);
 }

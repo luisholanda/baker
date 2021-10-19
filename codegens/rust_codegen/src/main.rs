@@ -8,7 +8,7 @@ use baker_ir_pb::{
         sum::{member::Value, Member},
         Definition, ImplBlock,
     },
-    Block, Function, FunctionCall, Namespace, Statement, Type, TypeDef, Visibility,
+    Attribute, Block, Function, Namespace, Statement, Type, TypeDef, Visibility,
 };
 use heck::SnakeCase;
 use proc_macro2::{Span, TokenStream};
@@ -193,21 +193,39 @@ impl Codegen {
         quote! { #syn_type }
     }
 
-    fn codegen_attribute(&self, call: FunctionCall) -> TokenStream {
-        let attribute = make_ident(&call.function);
-        let args = call.args.into_iter().map(|a| self.codegen_value(a));
-        let kwargs = call
-            .kwargs
-            .into_iter()
-            .map(|(k, v)| (make_ident(&k), self.codegen_value(v)))
-            .map(|(k, v)| quote! { #k = #v });
+    fn codegen_attribute(&self, attr: Attribute) -> TokenStream {
+        use baker_ir_pb::attribute::Value;
+        match attr.value {
+            Some(Value::Call(call)) => {
+                let attribute = make_ident(&call.function);
+                let args = call.args.into_iter().map(|a| self.codegen_value(a));
+                let kwargs = call
+                    .kwargs
+                    .into_iter()
+                    .map(|(k, v)| (make_ident(&k), self.codegen_value(v)))
+                    .map(|(k, v)| quote! { #k = #v });
 
-        quote! {
-            #[#attribute(#(#args),*, #(#kwargs),*)]
+                quote! {
+                    #[#attribute(#(#args),*, #(#kwargs),*)]
+                }
+            }
+            Some(Value::Assignment(assign)) => {
+                let ident = make_ident(&assign.ident);
+                let value = self.codegen_value(assign.value.unwrap());
+
+                quote! {
+                    #[#ident = #value]
+                }
+            }
+            Some(Value::Identifier(ident)) => {
+                let ident = self.name_to_path(&ident.to_snake_case());
+                quote! { #[#ident] }
+            }
+            None => quote! {},
         }
     }
 
-    fn codegen_attributes(&self, attrs: impl IntoIterator<Item = FunctionCall>) -> TokenStream {
+    fn codegen_attributes(&self, attrs: impl IntoIterator<Item = Attribute>) -> TokenStream {
         let attributes = attrs.into_iter().map(|attr| self.codegen_attribute(attr));
 
         quote! { #(#attributes)* }
@@ -411,11 +429,20 @@ impl Codegen {
             quote! {}
         };
 
+        let arguments = func.arguments.into_iter().map(|arg| {
+            let name = make_ident(&arg.name);
+            let ty = self.codegen_type(arg.r#type.unwrap());
+
+            quote! { #name: #ty }
+        });
+
         let block = self.codegen_block(func.implementation.unwrap());
+        let attributes = self.codegen_attributes(func.attributes);
 
         quote! {
             #doc
-            #vis fn #header () #ret_ty #block
+            #attributes
+            #vis fn #header (#(#arguments),*) #ret_ty #block
         }
     }
 
@@ -438,9 +465,20 @@ impl Codegen {
             .into_iter()
             .map(|stmt| self.codegen_statement(stmt));
 
-        quote! {
-            {
-                #(#statements)*
+        if let Some(val) = block.return_value {
+            let value = self.codegen_value(val);
+
+            quote! {
+                {
+                    #(#statements)*
+                    #value
+                }
+            }
+        } else {
+            quote! {
+                {
+                    #(#statements)*
+                }
             }
         }
     }
@@ -452,6 +490,18 @@ impl Codegen {
             Some(Statement::Return(v)) => {
                 let val = self.codegen_value(v);
                 quote! { return #val; }
+            }
+            Some(Statement::Assignment(assign)) => {
+                use baker_ir_pb::statement::assignment::AssignmentType;
+                let assign_type = assign.assignment_type();
+                let name = self.name_to_path(&assign.ident);
+                let value = self.codegen_value(assign.value.unwrap());
+
+                match assign_type {
+                    AssignmentType::Reassignment => quote! { #name = #value; },
+                    AssignmentType::DefConstant => quote! { let #name = #value; },
+                    AssignmentType::DefMutable => quote! { let mut #name = #value; },
+                }
             }
             None => quote! {},
         }

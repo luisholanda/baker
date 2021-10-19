@@ -4,12 +4,43 @@ package baker.ir.v1;
 
 import "baker/ir/v1/values.proto";
 
+// A block of statements.
 message Block {
+  // Statements in this block.
   repeated Statement statements = 1;
+  // Value returned by this block.
+  //
+  // What this represents may depend on the language.
+  optional Value return_value = 2;
 }
 
+// Statements
 message Statement {
+  // A variable assignment.
+  message Assignment {
+    // Types of assignment.
+    enum AssignmentType {
+      // The variable already exists, we're just re-assigning it.
+      REASSIGNMENT = 0;
+      // The assignment is defining a constant value.
+      DEF_CONSTANT = 1;
+      // The assignment is defining a mutable value.
+      DEF_MUTABLE = 2;
+    }
+
+    // Name of the variable.
+    string ident = 1;
+    // Type of assignment.
+    AssignmentType assignment_type = 2;
+    // Value in the RHS of the assignment.
+    Value value = 3;
+  }
+
+  // The statement value.
   oneof statement {
-    Value return = 2;
+    // A return statement.
+    Value return = 1;
+    // An assignment statement.
+    Assignment assignment = 2;
   };
 }

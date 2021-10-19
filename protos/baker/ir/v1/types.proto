@@ -85,7 +85,7 @@ message TypeDef {
       //   - In Rust, these should be added as attributes;
       //   - In Python, Java, or JavaScript, these should be added as decorators;
       //   - In Go, these can be added as metadata.
-      repeated FunctionCall attributes = 3;
+      repeated Attribute attributes = 3;
 
       // Documentation of this property.
       string documentation = 4;
@@ -113,7 +113,7 @@ message TypeDef {
       };
 
       // Attributes of this member.
-      repeated FunctionCall attributes = 5;
+      repeated Attribute attributes = 5;
 
       // Documentation of this member.
       string documentation = 6;
@@ -155,7 +155,7 @@ message TypeDef {
   };
 
   // All attributes in the type definition.
-  repeated FunctionCall attributes = 5;
+  repeated Attribute attributes = 5;
 
   // All implementation blocks for this type.
   repeated ImplBlock blocks = 6;
@@ -184,14 +184,19 @@ message TypeAlias {
 
 // A function definition.
 message Function {
+  // Argument of a function.
   message Argument {
+    // Argument type.
     enum ArgType {
+      // The argument is positional.
       POSITIONAL = 0;
-      KEYWORD = 1;
     }
 
+    // Name of the argument.
     string name = 1;
+    // Argument type.
     ArgType arg_type = 2;
+    // Type of the argument.
     Type type = 3;
   }
 
@@ -217,6 +222,9 @@ message Function {
 
   // Arguments of the function.
   repeated Argument arguments = 7;
+
+  // Attributes in this function.
+  repeated Attribute attributes = 8;
 }
 
 // An interface definition.
@@ -250,6 +258,25 @@ message Interface {
   string documentation = 4;
 
   // TODO(impls): handle constants
+}
+
+// An attribute added to some item in the code.
+message Attribute {
+  // Value of the attribute.
+  oneof value {
+    // A function call attribute.
+    //
+    // E.g. `#[serde(rename_all = "camelCase")]`.
+    FunctionCall call = 1;
+    // An assignment attribute.
+    //
+    // E.g. `#[table_name = "foo"]`
+    Statement.Assignment assignment = 2;
+    // An identifier attribute.
+    //
+    // E.g. `#[tracing::instrument]`.
+    string identifier = 3;
+  };
 }
 
 // Possible visibility levels.
