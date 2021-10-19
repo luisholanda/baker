@@ -5,9 +5,9 @@ package blog.api.v1;
 // A user in the service.
 message User {
   // ID of the user.
-  int64 id = 1 [ api.field_behavior = OUTPUT_ONLY ];
+  int64 id = 1 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Name of the user.
-  string name = 2 [ api.field_behavior = IMMUTABLE ];
+  string name = 2 [ (baker.api.field_behavior) = IMMUTABLE ];
 }
 
 // A post in the service.
@@ -15,20 +15,20 @@ message Post {
   // A comment on a post in the service.
   message Comment {
     // ID of the comment.
-    int64 id = 1 [ api.field_behavior = OUTPUT_ONLY ];
+    int64 id = 1 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
     // ID of the post where this comment was posted.
     int64 post_id = 2 [
-      api.field_behavior = IMMUTABLE,
-      orm.releationship = PARENT_ID,
-      orm.parent_type = "blog.api.v1.Post",
+      (baker.api.field_behavior) = IMMUTABLE,
+      (baker.orm.releationship) = PARENT_ID,
+      (baker.orm.related_type) = "blog.api.v1.Post",
     ];
     // Author of the comment.
     User author = 3 [
-      api.field_behavior = IMMUTABLE,
-      orm.releationship = PARENT,
+      (baker.api.field_behavior) = IMMUTABLE,
+      (baker.orm.releationship) = PARENT,
     ];
     // Content of the comment.
-    string content = 4 [ api.field_behavior = IMMUTABLE ];
+    string content = 4 [ (baker.api.field_behavior) = IMMUTABLE ];
   }
 
   // Possible formats of content in a Post.
@@ -44,13 +44,13 @@ message Post {
   // Title of the post.
   string title = 2;
   // Likes of the post.
-  uint32 likes = 3 [ api.field_behavior = OUTPUT_ONLY ];
+  uint32 likes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Dislikes of the post.
-  uint32 dislikes = 3 [ api.field_behavior = OUTPUT_ONLY ];
+  uint32 dislikes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Author of the post.
   User author = 4 [
-    api.field_behavior = IMMUTABLE,
-    orm.relationship = PARENT,
+    (baker.api.field_behavior) = IMMUTABLE,
+    (baker.orm.relationship) = PARENT,
   ];
   // Content of the post.
   string content = 5;
@@ -58,7 +58,7 @@ message Post {
   ContentFormat content_format = 6;
   // All comments in the post.
   repeated Comment comments = 7 [
-    api.field_behavior = OUTPUT_ONLY,
-    orm.releationship = MANY_TO_ONE,
+    (baker.api.field_behavior) = OUTPUT_ONLY,
+    (baker.orm.releationship) = CHILDREN,
   ];
 }

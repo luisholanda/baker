@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package baker;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  // Visibility to use when generating the field.
+  baker.Visibility field_visibility = 2021 [ default = PUBLIC ];
+}
+
+extend google.protobuf.MessageOptions {
+  // Default visibility to use when fields aren't annotated
+  // with `baker.field_visilibity`.
+  baker.Visibility default_field_visibility = 2021 [ default = PUBLIC ];
+}
+
+// Possible visibilities.
+//
+// Normally you will use the default `PUBLIC`, but when wanting to use
+// only getter/setters, changing the visibility may be useful.
+enum Visibility {
+  // Conventional default.
+  UNKNOWN = 0;
+
+  // The field is private.
+  PRIVATE = 1;
+
+  // The field is protected.
+  PROTECTED = 2;
+
+  // The field is private to its package.
+  PACKAGE = 3;
+
+  // The field is public.
+  PUBLIC = 4;
+}

@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package baker.api;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  // Changes the case style for this field.
+  baker.api.NameCase field_name_case = 2031 [ default = CAMEL_CASE ];
+
+  // Changes the name used in the API representation of this field.
+  //
+  // The value set in this field will ignore the `baker.api.field_case`
+  // option.
+  string field_name = 2032;
+
+  // Possible aliases of this field.
+  repeated string field_alias = 2033;
+}
+
+extend google.protobuf.EnumOptions {
+  // Default case style for values in this enum.
+  baker.api.NameCase default_value_name_case = 2031 [ default = SCREAMING_SNAKE_CASE ];
+}
+
+extend google.protobuf.EnumValueOptions {
+  // Name case style for this value.
+  baker.api.NameCase value_name_case = 2031 = [ default = SCREAMING_SNAKE_CASE ];
+
+  // Changes the name used in the API representation of this field.
+  //
+  // The value set in this field will ignore the `baker.api.field_case`
+  // option.
+  string value_name = 2032;
+
+  // Possible aliases of this field.
+  repeated string value_alias = 2033;
+}
+
+extend google.protobuf.MessageOptions {
+  // Default case style for the fields in this message.
+  baker.api.NameCase default_field_name_case = 2031 [ default = CAMEL_CASE ];
+}
+
+// Possible cases for names.
+enum NameCase {
+  // Conventional default, don't use it.
+  NAME_CASE_UNSPECIFIED = 0;
+
+  // `camelCase` field name style.
+  CAMEL_CASE = 1;
+
+  // `snake_case` field name style.
+  SNAKE_CASE = 2;
+
+  // `kebab-case` field name style.
+  KEBAB_CASE = 3;
+
+  // `PascalCase` field name style.
+  PASCAL_CASE = 4;
+
+  // `SCREAMING_SNAKE_CASE` field name style.
+  SCREAMING_SNAKE_CASE = 5;
+
+  // `SCREAMING-KEBAB-CASE` field name style.
+  SCREAMING_KEBAB_CASE = 6;
+}

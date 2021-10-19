@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package baker.api;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FieldOptions {
+  // Controls the API behavior of the field.
+  baker.api.FieldBehavior field_behavior = 2001;
+}
+
+// An indicator of the behavior of a given field (for example, that
+// the field can't be changed after set).
+enum FieldBehavior {
+  // Conventional default, don't use it.
+  FIELD_BEHAVIOR_UNSPECIFIED = 0;
+
+  // The field is only provided in responses, and will be *ignored*
+  // in requests.
+  OUTPUT_ONLY = 1;
+
+  // The field is only provided in requests, and it will not be included
+  // in responses.
+  INPUT_ONLY = 2;
+
+  // The field value can only be set once when creating the resource, and
+  // can not be changed later.
+  IMMUTABLE = 3;
+}

@@ -3,8 +3,7 @@ use std::{collections::HashMap, io};
 use baker_ir_pb::{
     r#type::Fundamental,
     type_def::{record::Property, sum::Member, Definition, ImplBlock, Record, Sum},
-    Attribute, Block, Function, FunctionCall, IrFile, Namespace, Statement, Type, TypeDef, Value,
-    Visibility,
+    Attribute, Block, Function, FunctionCall, IrFile, Namespace, Type, TypeDef, Value, Visibility,
 };
 use baker_layer_pb::{LayerRequest, LayerResponse};
 use baker_pkg_pb::{
@@ -14,7 +13,7 @@ use baker_pkg_pb::{
 use heck::CamelCase;
 
 const DEFAULT_FIELD_VISIBILITY_OPTION: &str = "baker.default_field_visibility";
-const FIELD_VISIBILITY_OPTION: &str = "baker.visibility";
+const FIELD_VISIBILITY_OPTION: &str = "baker.field_visibility";
 
 fn layer_impl(req: LayerRequest) -> std::io::Result<LayerResponse> {
     let mut pkg = req.packages.expect("no packages received from baker");
@@ -198,6 +197,7 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
             "Ord",
         ])],
         blocks: impl_blocks,
+        documentation: enum_.documentation.unwrap_or_default(),
         visibility: Visibility::Public as i32,
         ..Default::default()
     }
