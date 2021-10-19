@@ -3,6 +3,7 @@ extern crate clap;
 
 use std::{collections::HashSet, io, path::PathBuf};
 
+use baker_codegen::{Codegen, CodegenRequest};
 use baker_ir_merger::IrMerger;
 use baker_layer::{Layer, LayerRequest};
 use baker_pkg_loader::PkgLoader;
@@ -18,6 +19,12 @@ fn main() -> std::io::Result<()> {
             .required(true)
             .multiple(true)
             .min_values(1),
+            Arg::with_name("codegen")
+            .long("codegen")
+            .help("Codegen executable to use to generate the desired concrete language")
+            .required(true)
+            .min_values(1)
+            .max_values(1),
             Arg::with_name("inputs")
             .help("Main input files.")
             .required(true)
@@ -29,6 +36,7 @@ fn main() -> std::io::Result<()> {
 
     let inputs = matches.values_of_lossy("inputs").unwrap_or_default();
     let layers = matches.values_of_lossy("layers").unwrap_or_default();
+    let codegen = matches.value_of_lossy("codegen").unwrap_or_default();
 
     let mut loader = PkgLoader::new();
     let inputs: HashSet<_> = inputs.into_iter().map(PathBuf::from).collect();
@@ -60,7 +68,17 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    dbg!(merger);
+    let files = dbg!(merger.into_files());
+    {
+        let req = CodegenRequest {
+            packages: request.packages,
+            ir_files: files,
+            output_folder: std::env::current_dir()?.display().to_string(),
+        };
+
+        let codegen = Codegen::new(&codegen).unwrap();
+        codegen.execute(&req)?
+    };
 
     Ok(())
 }

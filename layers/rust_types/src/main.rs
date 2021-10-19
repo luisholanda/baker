@@ -157,7 +157,7 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
 
     let mut impl_blocks = vec![];
 
-    if default_member.is_empty() {
+    if !default_member.is_empty() {
         let default_impl = ImplBlock {
             interface: Some(Type {
                 name: "Default".to_owned(),

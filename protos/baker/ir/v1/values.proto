@@ -6,11 +6,6 @@ package baker.ir.v1;
 message Value {
   // The value
   oneof value {
-    // A raw value in the final concrete language.
-    //
-    // - Layers MUST ensure that the string is a valid value in the language.
-    // - Codegens MUST interpolate this string directly in the final file content.
-    string raw = 1;
     // A function call.
     FunctionCall call = 2;
     // An identifier.

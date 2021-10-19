@@ -19,7 +19,8 @@ message Post {
     // ID of the post where this comment was posted.
     int64 post_id = 2 [
       api.field_behavior = IMMUTABLE,
-      orm.releationship = PARENT,
+      orm.releationship = PARENT_ID,
+      orm.parent_type = "blog.api.v1.Post",
     ];
     // Author of the comment.
     User author = 3 [
@@ -28,6 +29,14 @@ message Post {
     ];
     // Content of the comment.
     string content = 4 [ api.field_behavior = IMMUTABLE ];
+  }
+
+  // Possible formats of content in a Post.
+  enum ContentFormat {
+    // The post was written in plain text.
+    PLAIN_TEXT = 0;
+    // The post was written in markdown.
+    MARKDOWN = 1;
   }
 
   // ID of the post.
@@ -45,8 +54,10 @@ message Post {
   ];
   // Content of the post.
   string content = 5;
+  // Format used in `content`.
+  ContentFormat content_format = 6;
   // All comments in the post.
-  repeated Comment comments = 6 [
+  repeated Comment comments = 7 [
     api.field_behavior = OUTPUT_ONLY,
     orm.releationship = MANY_TO_ONE,
   ];

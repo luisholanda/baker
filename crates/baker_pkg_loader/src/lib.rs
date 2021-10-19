@@ -132,6 +132,7 @@ impl PkgLoaderState {
         } else {
             let pkg = self.graph.define_pkg(pkg_name.clone());
             self.pkg_ids.insert(pkg_name, pkg.id);
+            pkg.files.push(file_id);
         }
 
         file_id

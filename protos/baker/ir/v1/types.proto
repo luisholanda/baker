@@ -49,22 +49,6 @@ message Type {
     OPTIONAL = 17;
   }
 
-  // Bounds added to a type.
-  message Bounds {
-    // Interfaces in the bound.
-    repeated Type interfaces = 2;
-    // Lifetimes in the bound.
-    repeated string lifetimes = 3;
-  }
-
-  // An interface base when refering to an associated type.
-  message InterfaceBase {
-    // The receiver type.
-    Type receiver = 1;
-    // The interface.
-    Type interface = 2;
-  }
-
   // Name of the type. Should not be set if `fundamental` is set.
   //
   // To keep consistency between all layers, this field MUST _always_ be in
@@ -78,16 +62,6 @@ message Type {
 
   // Any generic parameters associated with this type.
   repeated Type generics = 3;
-
-  // Bounds of this type.
-  //
-  // Codegens should remember to generate these layers in every mention.
-  optional Bounds bounds = 5;
-
-  // Interface base of the type.
-  //
-  // Set when this instance refers to an associated type.
-  InterfaceBase base = 6;
 
   // All lifetime parameters with this type.
   repeated string lifetimes = 10;
@@ -189,6 +163,7 @@ message TypeDef {
   // Documentation of the type.
   string documentation = 7;
 
+  // Visibility of the type.
   Visibility visibility = 8;
 }
 
@@ -246,6 +221,22 @@ message Function {
 
 // An interface definition.
 message Interface {
+  // Bounds added to a type.
+  message Bounds {
+    // Interfaces in the bound.
+    repeated Type interfaces = 2;
+    // Lifetimes in the bound.
+    repeated string lifetimes = 3;
+  }
+
+  // An associated type in this interface.
+  message AssocType {
+    // The header of the assoc. type.
+    Type header = 1;
+    // Bounds in this assoc. type.
+    optional Bounds bounds = 2;
+  }
+
   // Interface header.
   Type header = 1;
 
@@ -253,7 +244,7 @@ message Interface {
   repeated Function methods = 2;
 
   // Associated types in this interface.
-  repeated Type assoc_types = 3;
+  repeated AssocType assoc_types = 3;
 
   // Interface documentation.
   string documentation = 4;

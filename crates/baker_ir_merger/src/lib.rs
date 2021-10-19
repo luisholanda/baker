@@ -37,6 +37,10 @@ impl IrMerger {
             merge_namespaces(prev_root, root, ir_file.file_id, &mut self.type_def_maps);
         }
     }
+
+    pub fn into_files(self) -> Vec<IrFile> {
+        self.files.into_values().collect()
+    }
 }
 
 fn merge_namespaces(

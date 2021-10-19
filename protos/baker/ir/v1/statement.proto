@@ -10,7 +10,6 @@ message Block {
 
 message Statement {
   oneof statement {
-    string raw = 1;
     Value return = 2;
   };
 }

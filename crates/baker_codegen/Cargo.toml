@@ -1,0 +1,11 @@
+[package]
+name = "baker_codegen"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+baker_codegen_pb = { path = "../baker_codegen_pb" }
+prost = "0.8"
+which = "4.2.2"
