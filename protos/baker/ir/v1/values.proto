@@ -10,6 +10,8 @@ message Value {
     FunctionCall call = 2;
     // An identifier.
     string identifier = 3;
+    // Await a given value.
+    Value await = 9;
   };
 }
 

@@ -439,10 +439,16 @@ impl Codegen {
         let block = self.codegen_block(func.implementation.unwrap());
         let attributes = self.codegen_attributes(func.attributes);
 
+        let asyncness = if func.asyncness {
+            quote! { async }
+        } else {
+            quote! {}
+        };
+
         quote! {
             #doc
             #attributes
-            #vis fn #header (#(#arguments),*) #ret_ty #block
+            #vis #asyncness fn #header (#(#arguments),*) #ret_ty #block
         }
     }
 
@@ -520,6 +526,11 @@ impl Codegen {
                 let ident = self.name_to_path(&ident);
 
                 quote! { #ident }
+            }
+            Some(Value::Await(val)) => {
+                let value = self.codegen_value(*val);
+
+                quote! { #value.await }
             }
             None => quote! {},
         }

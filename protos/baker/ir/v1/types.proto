@@ -225,6 +225,9 @@ message Function {
 
   // Attributes in this function.
   repeated Attribute attributes = 8;
+
+  // Is this function an async function?
+  bool asyncness = 9;
 }
 
 // An interface definition.
