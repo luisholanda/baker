@@ -99,17 +99,14 @@ message TypeDef {
   message Sum {
     // A member of a sum type.
     message Member {
-      // The name of the member.
-      string name = 1;
-
       // The value of the member.
       oneof value {
         // A C-like value.
-        int32 fixed = 2;
+        int32 fixed = 1;
         // A record value.
-        TypeDef.Record record = 3;
+        TypeDef.Record record = 2;
         // A type reference.
-        Type type = 4;
+        Type type = 3;
       };
 
       // Attributes of this member.
@@ -120,7 +117,7 @@ message TypeDef {
     }
 
     // Members of the sum type.
-    repeated Member members = 1;
+    map<string, Member> members = 1;
   }
 
   // A set of implementations for a type.

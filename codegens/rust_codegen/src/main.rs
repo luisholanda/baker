@@ -103,7 +103,10 @@ impl Codegen {
                 quote! { struct #header_tokens { #(#properties)* } }
             }
             Definition::Sum(sum) => {
-                let members = sum.members.into_iter().map(|m| self.codegen_member(m));
+                let members = sum
+                    .members
+                    .into_iter()
+                    .map(|(n, m)| self.codegen_member(n, m));
 
                 let enum_name = ty.name.rsplit_once('.').unwrap().1;
                 let mod_name = module_path_segments(enum_name);
@@ -115,7 +118,7 @@ impl Codegen {
                     pub mod #(#mod_name)* {
                         //! Module used to export enum members for use in generated code.
                         //! This can be removed when you stop using the generator.
-                        use super::#enum_name::*;
+                        pub use super::#enum_name::*;
                     }
                 }
             }
@@ -159,8 +162,8 @@ impl Codegen {
         }
     }
 
-    fn codegen_member(&self, member: Member) -> TokenStream {
-        let name = make_ident(&member.name);
+    fn codegen_member(&self, name: String, member: Member) -> TokenStream {
+        let name = make_ident(&name);
         let attributes = self.codegen_attributes(member.attributes);
         let doc = self.codegen_doc_attributes(&member.documentation);
 
@@ -197,16 +200,16 @@ impl Codegen {
         use baker_ir_pb::attribute::Value;
         match attr.value {
             Some(Value::Call(call)) => {
-                let attribute = make_ident(&call.function);
+                let attribute = make_ident(&call.function.to_snake_case());
                 let args = call.args.into_iter().map(|a| self.codegen_value(a));
                 let kwargs = call
                     .kwargs
                     .into_iter()
-                    .map(|(k, v)| (make_ident(&k), self.codegen_value(v)))
+                    .map(|(k, v)| (make_ident(&k.to_snake_case()), self.codegen_value(v)))
                     .map(|(k, v)| quote! { #k = #v });
 
                 quote! {
-                    #[#attribute(#(#args),*, #(#kwargs),*)]
+                    #[#attribute(#(#args,)* #(#kwargs),*)]
                 }
             }
             Some(Value::Assignment(assign)) => {
@@ -405,10 +408,11 @@ impl Codegen {
             quote! {}
         };
 
-        let methods = block
-            .methods
-            .into_iter()
-            .map(|meth| self.codegen_function(meth));
+        let methods = block.methods.into_iter().map(|mut meth| {
+            // Remove visibility from trait functions.
+            meth.set_visibility(Visibility::Private);
+            self.codegen_function(meth)
+        });
 
         quote! {
             impl #trait_prefix #ty_header {
@@ -526,6 +530,11 @@ impl Codegen {
                 let ident = self.name_to_path(&ident);
 
                 quote! { #ident }
+            }
+            Some(Value::StringValue(value)) => {
+                let lit = syn::Lit::Str(syn::LitStr::new(&value, Span::mixed_site()));
+
+                quote! { #lit }
             }
             Some(Value::Await(val)) => {
                 let value = self.codegen_value(*val);

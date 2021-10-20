@@ -96,7 +96,11 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
             oneof.name.clone(),
             Property {
                 r#type: Some(Type {
-                    name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
+                    fundamental: Fundamental::Optional as i32,
+                    generics: vec![Type {
+                        name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 }),
                 documentation: oneof.documentation.clone().unwrap_or_default(),
@@ -110,16 +114,7 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
         );
     }
 
-    // Generated oneof enums don't implement Default.
-    //
-    // TODO: add an option to define the default variant.
     // TODO: use the `default` option when generating `impl Default`.
-    let default_traits: &[&str] = if msg.oneofs.is_empty() {
-        &["Clone", "Debug", "PartialEq"]
-    } else {
-        &["Clone", "Debug", "Default", "PartialEq"]
-    };
-
     Ok(TypeDef {
         header: Some(Type {
             name: msg.name.clone(),
@@ -127,14 +122,14 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
         }),
         definition: Some(Definition::Record(Record { properties })),
         documentation: msg.documentation.take().unwrap_or_default(),
-        attributes: vec![derive_call(default_traits)],
+        attributes: vec![derive_call(&["Clone", "Debug", "Default", "PartialEq"])],
         visibility: Visibility::Public as i32,
         ..Default::default()
     })
 }
 
 fn generate_enum_type(enum_: Enum) -> TypeDef {
-    let mut members = Vec::with_capacity(enum_.values.len());
+    let mut members = HashMap::with_capacity(enum_.values.len());
     let mut default_member = String::new();
 
     let enum_type = Type {
@@ -147,12 +142,14 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
             default_member = format!("{}.{}", enum_type.name, val.name.to_camel_case());
         }
 
-        members.push(Member {
-            name: val.name.to_camel_case(),
-            documentation: val.documentation.unwrap_or_default(),
-            value: Some(baker_ir_pb::type_def::sum::member::Value::Fixed(val.value)),
-            attributes: vec![],
-        })
+        members.insert(
+            val.name.to_camel_case(),
+            Member {
+                documentation: val.documentation.unwrap_or_default(),
+                value: Some(baker_ir_pb::type_def::sum::member::Value::Fixed(val.value)),
+                attributes: vec![],
+            },
+        );
     }
 
     let mut impl_blocks = vec![];
@@ -237,17 +234,19 @@ fn generate_msg_namespace(msg: &Message, graph: &mut PackageGraph) -> io::Result
 }
 
 fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> TypeDef {
-    let mut members = Vec::with_capacity(oneof.fields.len());
+    let mut members = HashMap::with_capacity(oneof.fields.len());
 
     for f in &oneof.fields {
-        members.push(Member {
-            name: f.name.to_camel_case(),
-            attributes: vec![],
-            documentation: f.documentation().to_string(),
-            value: Some(baker_ir_pb::type_def::sum::member::Value::Type(
-                translate_field_type(f, graph),
-            )),
-        });
+        members.insert(
+            f.name.to_camel_case(),
+            Member {
+                attributes: vec![],
+                documentation: f.documentation().to_string(),
+                value: Some(baker_ir_pb::type_def::sum::member::Value::Type(
+                    translate_field_type(f, graph),
+                )),
+            },
+        );
     }
 
     TypeDef {

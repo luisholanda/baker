@@ -161,6 +161,8 @@ message Message {
     optional string documentation = 10;
   }
 
+  // TODO: how should we handle optional-ness of oneofs?
+
   // An `oneof` declaration.
   message OneOf {
     // The name of the `oneof`.

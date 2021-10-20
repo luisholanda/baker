@@ -2,7 +2,9 @@ LAYERS := $(shell find layers/ -mindepth 1 -maxdepth 1 -type d -exec basename {}
 CODEGENS := $(shell find codegens/ -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
 BAKER := target/debug/baker
 
-LAYER_BINS := $(addprefix target/debug/, $(LAYERS))
+LAYER_BINS := rust_types \
+							rust_serde
+LAYER_BINS := $(addprefix target/debug/, $(LAYER_BINS))
 CODEGEN_BINS := $(addprefix target/debug/, $(CODEGENS))
 
 PROTO_SRCS := $(shell find protos -type f)
@@ -19,8 +21,8 @@ example: $(BAKER) $(LAYER_BINS) $(CODEGEN_BINS)
 $(BAKER): $(BAKER_SRCS) $(PROTO_SRCS)
 	cargo build --bin baker
 
-$(LAYER_BINS): $(LAYER_SRCS)
-	cargo build --manifest-path layers/*/Cargo.toml
+$(LAYER_BINS): $(LAYER_SRCS) $(PROTO_SRCS)
+	cargo build $(addprefix -p , $(LAYERS))
 
-$(CODEGEN_BINS): $(CODEGEN_SRCS)
-	cargo build --manifest-path codegens/*/Cargo.toml
+$(CODEGEN_BINS): $(CODEGEN_SRCS) $(PROTO_SRCS)
+	cargo build $(addprefix -p , $(CODEGENS))
