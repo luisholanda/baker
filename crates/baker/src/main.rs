@@ -56,8 +56,6 @@ fn main() -> std::io::Result<()> {
     for layer in &layers {
         if let Some(layer) = Layer::new(layer) {
             let resp = layer.execute(&request)?;
-            dbg!(&resp);
-
             for file in resp.ir_files {
                 merger.add_ir_file_def(file);
             }

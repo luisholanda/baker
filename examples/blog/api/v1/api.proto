@@ -4,8 +4,15 @@ package blog.api.v1;
 
 // A user in the service.
 message User {
+  option (baker.orm.table_name) = "users";
+  option (baker.orm.table_path) = "crate.bla.users";
+  option (baker.orm.primary_key) = "user_id";
+
   // ID of the user.
-  int64 id = 1 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
+  int64 id = 1 [
+    (baker.api.field_behavior) = OUTPUT_ONLY,
+    (baker.orm.column_name) = "user_id",
+  ];
   // Name of the user.
   string name = 2 [ (baker.api.field_behavior) = IMMUTABLE ];
 
@@ -22,8 +29,14 @@ message User {
 message Post {
   // A comment on a post in the service.
   message Comment {
+    option (baker.orm.table_name) = "comments";
+    option (baker.orm.primary_key) = "comment_id";
+
     // ID of the comment.
-    int64 id = 1 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
+    int64 id = 1 [
+      (baker.api.field_behavior) = OUTPUT_ONLY,
+      (baker.orm.column_name) = "comment_id",
+    ];
     // ID of the post where this comment was posted.
     int64 post_id = 2 [
       (baker.api.field_behavior) = IMMUTABLE,
@@ -41,24 +54,33 @@ message Post {
 
   // Possible formats of content in a Post.
   enum ContentFormat {
+    // Conventional default.
+    UNKNOWN = 0;
     // The post was written in plain text.
-    PLAIN_TEXT = 0;
+    PLAIN_TEXT = 1;
     // The post was written in markdown.
-    MARKDOWN = 1;
+    MARKDOWN = 2;
   }
 
+  option (baker.orm.table_name) = "posts";
+  option (baker.orm.primary_key) = "post_id";
+
   // ID of the post.
-  int64 id = 1;
+  int64 id = 1 [
+    (baker.api.field_behavior) = OUTPUT_ONLY,
+    (baker.orm.column_name) = "post_id",
+  ];
   // Title of the post.
-  string title = 2 [ (baker.api.field_name) = "post_title" ];
+  string title = 2;
   // Likes of the post.
   uint32 likes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Dislikes of the post.
   uint32 dislikes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Author of the post.
-  User author = 4 [
+  int64 author_id = 4 [
     (baker.api.field_behavior) = IMMUTABLE,
-    (baker.orm.relationship) = PARENT,
+    (baker.orm.relationship) = PARENT_ID,
+    (baker.orm.related_type) = "blog.api.v1.User"
   ];
   // Content of the post.
   string content = 5;

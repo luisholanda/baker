@@ -2,13 +2,14 @@ use std::{collections::HashMap, io};
 
 use baker_codegen_pb::{CodegenRequest, CodegenResponse};
 use baker_ir_pb::{
-    r#type::Fundamental,
+    r#type::{Fundamental, Name},
     type_def::{
         record::Property,
         sum::{member::Value, Member},
         Definition, ImplBlock,
     },
-    Attribute, Block, Function, Namespace, Statement, Type, TypeDef, Visibility,
+    Attribute, Block, Function, IdentifierPath, Import, Namespace, Pattern, Statement, Type,
+    TypeAlias, TypeDef, Visibility,
 };
 use heck::SnakeCase;
 use proc_macro2::{Span, TokenStream};
@@ -62,18 +63,65 @@ impl Codegen {
             quote! { pub mod #ident { #content } }
         });
 
+        let imports = ns.imports.into_iter().map(|imp| self.codegen_import(imp));
+
+        let aliases = ns
+            .aliases
+            .into_iter()
+            .map(|a| self.codegen_type_alias(a, true));
+
         quote! {
+            #(#imports)*
+            #(#aliases)*
             #(#types)*
             #(#ns_tokens)*
+        }
+    }
+
+    fn codegen_import(&self, imp: Import) -> TokenStream {
+        if let Some(module) = imp.module {
+            let path = self.identifier_path_to_path(&module, false);
+
+            if imp.glob {
+                quote! { use #path::*; }
+            } else if imp.things.is_empty() {
+                let alias = if let Some(alias) = imp.alias {
+                    let alias = make_ident(&alias);
+                    quote! { as #alias }
+                } else {
+                    quote! {}
+                };
+
+                quote! { use #path #alias; }
+            } else {
+                let things = imp
+                    .things
+                    .into_iter()
+                    .map(|t| self.identifier_path_to_path(&t, false));
+
+                quote! { use #path::{ #(#things,)* }; }
+            }
+        } else {
+            quote! {}
         }
     }
 
     fn codegen_typedef(&self, td: TypeDef) -> TokenStream {
         let vis = codegen_visibility(td.visibility());
         let ty = td.header.unwrap();
-        let defition = self.codegen_definition(td.definition.unwrap(), &ty);
-        let attributes = self.codegen_attributes(td.attributes);
-        let doc = self.codegen_doc_attributes(&td.documentation);
+        let definition = if let Some(def) = td.definition {
+            let definition = self.codegen_definition(def, &ty);
+            let attributes = self.codegen_attributes(td.attributes);
+            let doc = self.codegen_doc_attributes(&td.documentation);
+
+            quote! {
+                #doc
+                #attributes
+                #vis #definition
+            }
+        } else {
+            quote! {}
+        };
 
         let ty_header = self.codegen_type(ty);
         let impls = td
@@ -82,9 +130,7 @@ impl Codegen {
             .map(|block| self.codegen_impl_block(block, &ty_header));
 
         quote! {
-            #doc
-            #attributes
-            #vis #defition
+            #definition
 
             #(#impls)*
         }
@@ -108,18 +154,21 @@ impl Codegen {
                     .into_iter()
                     .map(|(n, m)| self.codegen_member(n, m));
 
-                let enum_name = ty.name.rsplit_once('.').unwrap().1;
-                let mod_name = module_path_segments(enum_name);
-                let enum_name = make_ident(enum_name);
+                if let Some(Name::Identifier(name)) = &ty.name {
+                    let enum_name = make_ident(&name.last().name);
+                    let mod_name = make_ident(&name.last().name.to_snake_case());
 
-                quote! {
-                    enum #header_tokens { #(#members)* }
+                    quote! {
+                        enum #header_tokens { #(#members)* }
 
-                    pub mod #(#mod_name)* {
-                        //! Module used to export enum members for use in generated code.
-                        //! This can be removed when you stop using the generator.
-                        pub use super::#enum_name::*;
+                        pub mod #mod_name {
+                            //! Module used to export enum members for use in generated code.
+                            //! This can be removed when you stop using the generator.
+                            pub use super::#enum_name::*;
+                        }
                     }
+                } else {
+                    unreachable!()
                 }
             }
         }
@@ -130,9 +179,9 @@ impl Codegen {
         let generics = self.codegen_generics(ty.generics.iter().cloned());
         let lifetimes = self.codegen_lifetimes(ty.lifetimes.iter().cloned());
 
-        let mut name = self.name_to_ident_path(&ty.name);
+        let mut name = self.type_name_to_path(ty.name.clone().unwrap()).unwrap();
         if has_generics_or_lifetimes {
-            let last = name.segments.last_mut().unwrap();
+            let last = name.path.segments.last_mut().unwrap();
             last.arguments =
                 syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
                     colon2_token: None,
@@ -142,10 +191,7 @@ impl Codegen {
                 });
         }
 
-        syn::Type::Path(syn::TypePath {
-            qself: None,
-            path: name,
-        })
+        syn::Type::Path(name)
     }
 
     fn codegen_property(&self, name: String, prop: Property) -> TokenStream {
@@ -200,7 +246,7 @@ impl Codegen {
         use baker_ir_pb::attribute::Value;
         match attr.value {
             Some(Value::Call(call)) => {
-                let attribute = make_ident(&call.function.to_snake_case());
+                let attribute = self.identifier_path_to_path(&call.function.unwrap(), true);
                 let args = call.args.into_iter().map(|a| self.codegen_value(a));
                 let kwargs = call
                     .kwargs
@@ -213,7 +259,7 @@ impl Codegen {
                 }
             }
             Some(Value::Assignment(assign)) => {
-                let ident = make_ident(&assign.ident);
+                let ident = self.identifier_path_to_path(&assign.ident.unwrap(), false);
                 let value = self.codegen_value(assign.value.unwrap());
 
                 quote! {
@@ -221,7 +267,7 @@ impl Codegen {
                 }
             }
             Some(Value::Identifier(ident)) => {
-                let ident = self.name_to_path(&ident.to_snake_case());
+                let ident = self.identifier_path_to_path(&ident, false);
                 quote! { #[#ident] }
             }
             None => quote! {},
@@ -236,8 +282,7 @@ impl Codegen {
 
     fn codegen_doc_attributes(&self, doc: &str) -> TokenStream {
         let attributes = doc.lines().map(|doc| {
-            let lit = syn::Lit::Str(syn::LitStr::new(doc, Span::mixed_site()));
-            quote! { #[doc = #lit] }
+            quote! { #[doc = #doc] }
         });
 
         quote! { #(#attributes)* }
@@ -259,34 +304,54 @@ impl Codegen {
     ) -> impl Iterator<Item = syn::GenericArgument> + 'a {
         generics
             .into_iter()
-            .map(|l| syn::Lifetime::new(&l, Span::mixed_site()))
+            .map(make_lifetime)
             .map(syn::GenericArgument::Lifetime)
+    }
+
+    fn codegen_type_alias(&self, alias: TypeAlias, gen_vis: bool) -> TokenStream {
+        let vis = if gen_vis {
+            codegen_visibility(alias.visibility())
+        } else {
+            quote! {}
+        };
+        if let Some((al, aliased)) = alias.alias.zip(alias.aliased) {
+            let doc = self.codegen_doc_attributes(&alias.documentation);
+            let attrs = self.codegen_attributes(alias.attributes);
+            let alias = self.codegen_type(al);
+            let aliased = self.codegen_type(aliased);
+
+            quote! { #doc #attrs #vis type #alias = #aliased; }
+        } else {
+            quote! {}
+        }
     }
 
     fn type_to_syn_type(&self, mut ty: Type) -> syn::Type {
         match ty.fundamental() {
             Fundamental::Unknown => {
                 let has_generics_or_lifetimes =
-                    !(ty.generics.is_empty() || ty.lifetimes.is_empty());
+                    !(ty.generics.is_empty() && ty.lifetimes.is_empty());
                 let generics = self.codegen_generics(ty.generics);
                 let lifetimes = self.codegen_lifetimes(ty.lifetimes);
 
-                let mut name = self.name_to_path(&ty.name);
-                if has_generics_or_lifetimes {
-                    let last = name.segments.last_mut().unwrap();
-                    last.arguments =
-                        syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
-                            colon2_token: None,
-                            lt_token: syn::token::Lt::default(),
-                            args: lifetimes.chain(generics).collect(),
-                            gt_token: syn::token::Gt::default(),
-                        });
-                }
+                if let Some(Name::Identifier(name)) = &ty.name {
+                    let mut name = self.identifier_path_to_path(name, false);
+                    if has_generics_or_lifetimes {
+                        let last = name.path.segments.last_mut().unwrap();
+                        last.arguments = syn::PathArguments::AngleBracketed(
+                            syn::AngleBracketedGenericArguments {
+                                colon2_token: None,
+                                lt_token: syn::token::Lt::default(),
+                                args: lifetimes.chain(generics).collect(),
+                                gt_token: syn::token::Gt::default(),
+                            },
+                        );
+                    }
 
-                syn::Type::Path(syn::TypePath {
-                    qself: None,
-                    path: name,
-                })
+                    syn::Type::Path(name)
+                } else {
+                    unreachable!()
+                }
             }
             Fundamental::Tuple => {
                 let elements = ty.generics.into_iter().map(|ty| self.type_to_syn_type(ty));
@@ -311,10 +376,7 @@ impl Codegen {
             fr @ (Fundamental::ShrdRef | Fundamental::UniqRef) => {
                 syn::Type::Reference(syn::TypeReference {
                     and_token: syn::token::And::default(),
-                    lifetime: ty
-                        .lifetimes
-                        .first()
-                        .map(|lf| syn::Lifetime::new(&lf, Span::mixed_site())),
+                    lifetime: ty.lifetimes.first().map(|lf| make_lifetime(lf.to_string())),
                     mutability: (fr == Fundamental::UniqRef).then(syn::token::Mut::default),
                     elem: Box::new(self.type_to_syn_type(ty.generics.remove(0))),
                 })
@@ -334,29 +396,38 @@ impl Codegen {
             Fundamental::Bool => syn::Type::Verbatim(quote! { bool }),
             Fundamental::String => syn::Type::Verbatim(quote! { ::std::string::String }),
             Fundamental::Bytes => syn::Type::Verbatim(quote! { ::bytes::Bytes }),
+            Fundamental::Self_ => syn::Type::Verbatim(quote! { Self }),
         }
     }
 
-    fn name_to_ident_path(&self, name: &str) -> syn::Path {
-        let segm = name.rsplit_once('.').unwrap().1;
-
-        syn::Path {
-            leading_colon: None,
-            segments: std::iter::once(syn::PathSegment {
-                ident: make_ident(&segm),
-                arguments: syn::PathArguments::None,
-            })
-            .collect(),
+    fn identifier_path_to_path(
+        &self,
+        path: &IdentifierPath,
+        generics_separated: bool,
+    ) -> syn::TypePath {
+        let mut module = path.scope_as_dotted_path();
+        if module.is_empty() {
+            // Anything can go here, given that no identifier can start with it.
+            module.push_str("&&~123");
         }
-    }
+        let name_segm = self.identifier_path_segment(path.last(), generics_separated);
+        let name_segm = std::iter::once(name_segm);
+        let is_global = path.scope() == baker_ir_pb::identifier_path::Scope::Global;
+        let is_package = path.scope() == baker_ir_pb::identifier_path::Scope::Package;
 
-    fn name_to_path(&self, name: &str) -> syn::Path {
-        syn::Path {
-            leading_colon: None,
-            segments: if let Some((module, name)) = name.rsplit_once('.') {
-                let name_segm = single_path_segment(name);
+        let qual_position = path.segments.len() - 1;
 
-                if let Some(submodule) = self.namespace.strip_prefix(module) {
+        syn::TypePath {
+            qself: path.qualifier.as_deref().map(|q| syn::QSelf {
+                lt_token: syn::token::Lt::default(),
+                ty: Box::new(self.type_to_syn_type(q.clone())),
+                position: qual_position,
+                as_token: Some(syn::token::As::default()),
+                gt_token: syn::token::Gt::default(),
+            }),
+            path: syn::Path {
+                leading_colon: is_global.then(syn::token::Colon2::default),
+                segments: if let Some(submodule) = self.namespace.strip_prefix(&module) {
                     // Example:
                     //     name = Foo
                     //     module = blog.api
@@ -387,16 +458,51 @@ impl Codegen {
                             .collect()
                     }
                 } else {
-                    let path_segments = module_path_segments(module);
+                    let path_segments = path.segments[..path.segments.len() - 1]
+                        .iter()
+                        .map(|s| self.identifier_path_segment(s, true));
 
-                    single_path_segment("crate")
-                        .chain(path_segments)
-                        .chain(name_segm)
-                        .collect()
-                }
-            } else {
-                single_path_segment(name).collect()
+                    let name = path_segments.chain(name_segm);
+
+                    if is_package {
+                        single_path_segment("crate").chain(name).collect()
+                    } else {
+                        name.collect()
+                    }
+                },
             },
+        }
+    }
+
+    fn identifier_path_segment(
+        &self,
+        seg: &baker_ir_pb::identifier_path::Segment,
+        generics_separated: bool,
+    ) -> syn::PathSegment {
+        syn::PathSegment {
+            ident: make_ident(&seg.name),
+            arguments: {
+                if seg.generics.is_empty() && seg.lifetimes.is_empty() {
+                    syn::PathArguments::None
+                } else {
+                    let gens = self.codegen_generics(seg.generics.clone());
+                    let lif = self.codegen_lifetimes(seg.lifetimes.clone());
+
+                    syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                        colon2_token: generics_separated.then(syn::token::Colon2::default),
+                        lt_token: syn::token::Lt::default(),
+                        args: lif.chain(gens).collect(),
+                        gt_token: syn::token::Gt::default(),
+                    })
+                }
+            },
+        }
+    }
+
+    fn type_name_to_path(&self, typ_name: Name) -> Option<syn::TypePath> {
+        match typ_name {
+            Name::Identifier(ident) => Some(self.identifier_path_to_path(&ident, false)),
+            Name::Fundamental(f) => None,
         }
     }
 
@@ -414,8 +520,23 @@ impl Codegen {
             self.codegen_function(meth)
         });
 
+        let gen_prefix = if block.generics.is_empty() && block.lifetimes.is_empty() {
+            quote! {}
+        } else {
+            let generics = self.codegen_generics(block.generics);
+            let lifetimes = self.codegen_lifetimes(block.lifetimes);
+
+            quote! { <#(#lifetimes,)* #(#generics,)*> }
+        };
+
+        let assoc_types = block
+            .assoc_types
+            .into_iter()
+            .map(|at| self.codegen_type_alias(at, false));
+
         quote! {
-            impl #trait_prefix #ty_header {
+            impl #gen_prefix #trait_prefix #ty_header {
+                #(#assoc_types)*
                 #(#methods)*
             }
         }
@@ -449,20 +570,31 @@ impl Codegen {
             quote! {}
         };
 
+        let receiver = if let Some(recv) = func.receiver {
+            match recv.fundamental() {
+                Fundamental::ShrdRef => quote! { &self, },
+                Fundamental::UniqRef => quote! { &mut self },
+                Fundamental::Self_ => quote! { self },
+                _ => {
+                    let typ = self.codegen_type(recv);
+                    quote! { self: #typ }
+                }
+            }
+        } else {
+            quote! {}
+        };
+
         quote! {
             #doc
             #attributes
-            #vis #asyncness fn #header (#(#arguments),*) #ret_ty #block
+            #vis #asyncness fn #header (#receiver #(#arguments),*) #ret_ty #block
         }
     }
 
     fn codegen_function_header(&self, header: Type) -> TokenStream {
         let typ = self.type_to_syn_type(header.clone());
 
-        if let syn::Type::Path(mut tp) = typ {
-            let last = tp.path.segments.last_mut().unwrap();
-            last.ident = make_ident(&header.name.to_snake_case());
-
+        if let syn::Type::Path(tp) = typ {
             quote! { #tp }
         } else {
             unreachable!("invalid return from type_to_syn_type with a function header")
@@ -504,14 +636,36 @@ impl Codegen {
             Some(Statement::Assignment(assign)) => {
                 use baker_ir_pb::statement::assignment::AssignmentType;
                 let assign_type = assign.assignment_type();
-                let name = self.name_to_path(&assign.ident);
-                let value = self.codegen_value(assign.value.unwrap());
+                let name = self.identifier_path_to_path(&assign.ident.unwrap(), true);
+                let value = if let Some(val) = assign.value {
+                    let val = self.codegen_value(val);
+                    quote! { = #val }
+                } else {
+                    quote! {}
+                };
+                let typ = if let Some(tp) = assign.r#type {
+                    let tp = self.codegen_type(tp);
+                    quote! { : #tp }
+                } else {
+                    quote! {}
+                };
 
                 match assign_type {
-                    AssignmentType::Reassignment => quote! { #name = #value; },
-                    AssignmentType::DefConstant => quote! { let #name = #value; },
-                    AssignmentType::DefMutable => quote! { let mut #name = #value; },
+                    AssignmentType::Reassignment => quote! { #name #value; },
+                    AssignmentType::DefConstant => quote! { let #name #typ #value; },
+                    AssignmentType::DefMutable => quote! { let mut #name #typ #value; },
                 }
+            }
+            Some(Statement::Switch(switch)) => {
+                let value = self.codegen_value(switch.value.unwrap());
+                let arms = switch.arms.into_iter().map(|arm| {
+                    let patterns = arm.pattern.into_iter().map(|p| self.codegen_pattern(p));
+                    let block = self.codegen_block(arm.block.unwrap());
+
+                    quote! { #(#patterns)|* => #block }
+                });
+
+                quote! { match #value { #(#arms)* } }
             }
             None => quote! {},
         }
@@ -522,12 +676,12 @@ impl Codegen {
 
         match value.value {
             Some(Value::Call(call)) => {
-                let func = make_ident(&call.function);
+                let func = self.identifier_path_to_path(&call.function.unwrap(), true);
                 let args = call.args.into_iter().map(|a| self.codegen_value(a));
                 quote! { #func(#(#args),*) }
             }
             Some(Value::Identifier(ident)) => {
-                let ident = self.name_to_path(&ident);
+                let ident = self.identifier_path_to_path(&ident, true);
 
                 quote! { #ident }
             }
@@ -536,12 +690,45 @@ impl Codegen {
 
                 quote! { #lit }
             }
+            Some(Value::Tuple(baker_ir_pb::value::Tuple { values })) => {
+                let values = values.into_iter().map(|v| self.codegen_value(v));
+
+                quote! { (#(#values,)*) }
+            }
+            Some(Value::Method(meth)) => {
+                let receiver = self.codegen_value(*meth.receiver.unwrap());
+                let method =
+                    self.codegen_value(baker_ir_pb::Value::func_call(meth.method.unwrap()));
+
+                quote! { #receiver.#method }
+            }
+            Some(Value::Cast(cast)) => {
+                let value = self.codegen_value(*cast.value.unwrap());
+                let typ = self.codegen_type(cast.cast_as.unwrap());
+
+                quote! { ( #value as #typ ) }
+            }
             Some(Value::Await(val)) => {
                 let value = self.codegen_value(*val);
 
                 quote! { #value.await }
             }
             None => quote! {},
+        }
+    }
+
+    fn codegen_pattern(&self, pattern: Pattern) -> TokenStream {
+        use baker_ir_pb::pattern::Value;
+
+        match pattern.value {
+            None => quote! {},
+            Some(Value::Constant(val)) => self.codegen_value(val),
+            Some(Value::Identifier(ident)) => {
+                self.identifier_path_to_path(&ident, true).to_token_stream()
+            }
+            Some(Value::Sum(sum)) => self.codegen_value(baker_ir_pb::Value {
+                value: Some(baker_ir_pb::value::Value::Call(sum)),
+            }),
         }
     }
 }
@@ -552,6 +739,11 @@ fn codegen_visibility(vis: Visibility) -> TokenStream {
         Visibility::Package => quote! { pub(crate) },
         Visibility::Unknown | Visibility::Public => quote! { pub },
     }
+}
+
+fn make_lifetime(mut l: String) -> syn::Lifetime {
+    l.insert(0, '\'');
+    syn::Lifetime::new(&l, Span::mixed_site())
 }
 
 fn make_ident(ident: &str) -> syn::Ident {
@@ -566,10 +758,13 @@ fn single_path_segment(ident: &str) -> std::iter::Once<syn::PathSegment> {
 }
 
 fn module_path_segments(module: &str) -> impl Iterator<Item = syn::PathSegment> + '_ {
-    module.split('.').map(|segm| syn::PathSegment {
-        ident: make_ident(&segm.to_snake_case()),
-        arguments: syn::PathArguments::None,
-    })
+    module
+        .split('.')
+        .filter(|s| !s.is_empty())
+        .map(|segm| syn::PathSegment {
+            ident: make_ident(&segm.to_snake_case()),
+            arguments: syn::PathArguments::None,
+        })
 }
 
 fn main() -> io::Result<()> {

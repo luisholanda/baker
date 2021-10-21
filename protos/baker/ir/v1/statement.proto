@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package baker.ir.v1;
 
+import "baker/ir/v1/types.proto";
 import "baker/ir/v1/values.proto";
 
 // A block of statements.
@@ -29,11 +30,34 @@ message Statement {
     }
 
     // Name of the variable.
-    string ident = 1;
+    IdentifierPath ident = 1;
     // Type of assignment.
     AssignmentType assignment_type = 2;
     // Value in the RHS of the assignment.
-    Value value = 3;
+    //
+    // Value is optional when only defining the variable.
+    optional Value value = 3;
+    // Type of the variable.
+    //
+    // Can't be set when using `REASSIGNMENT`.
+    optional Type type = 4;
+  }
+
+  // A switch/pattern match statement.
+  message Match {
+    // The arm of a pattern match.
+    message MatchArm {
+      // The patterns to patch.
+      repeated Pattern pattern = 1;
+      // The code to execute if the pattern match.
+      Block block = 2;
+    }
+
+    // Value to match on.
+    Value value = 1;
+
+    // The arms in this statement.
+    repeated MatchArm arms = 2;
   }
 
   // The statement value.
@@ -42,5 +66,7 @@ message Statement {
     Value return = 1;
     // An assignment statement.
     Assignment assignment = 2;
+    // A switch/pattern matching statement.
+    Match switch = 3;
   };
 }

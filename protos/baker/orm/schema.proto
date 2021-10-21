@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package baker.orm;
+
+import "baker/api/field_name.proto";
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.EnumOptions {
+  // Database type that the enum represents.
+  string database_type = 2041;
+  // Case style to use when converting the enum value to database values.
+  baker.api.NameCase database_enum_value_case = 2042;
+  // Indicate that the enum is stored as a number in the database.
+  bool database_use_int_values = 2043;
+}
+
+extend google.protobuf.FieldOptions {
+  // Schema's column that this field represents.
+  string column_name = 2041;
+}
+
+extend google.protobuf.MessageOptions {
+  // Database table that this message is releated.
+  string table_name = 2041;
+  // Table's column that is the primary key.
+  string primary_key = 2042;
+
+  // The absolute path to the table schema structure.
+  //
+  // Necessary for ORMs which define their schemas separated
+  // from entities.
+  string table_path = 2043;
+}

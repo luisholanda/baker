@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package baker.ir.v1;
 
-import "baker/ir/v1/types.proto";
+import "baker/ir/v1/items.proto";
 
 // A IR file.
 //
@@ -13,18 +13,4 @@ message IrFile {
 
   // Root namespace of the file.
   Namespace root = 2;
-}
-
-message Namespace {
-  // All generated types.
-  repeated TypeDef types = 2;
-  // All generated aliases.
-  repeated TypeAlias aliases = 3;
-  // All generated interfaces.
-  repeated Interface interfaces = 4;
-  // Free-standing functions.
-  repeated Function functions = 5;
-
-  // Nested namespaces declared inside this namespace.
-  map<string, Namespace> nested_namespaces = 6;
 }

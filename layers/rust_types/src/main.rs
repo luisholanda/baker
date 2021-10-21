@@ -1,9 +1,10 @@
 use std::{collections::HashMap, io};
 
 use baker_ir_pb::{
-    r#type::Fundamental,
+    r#type::{Fundamental, Name},
     type_def::{record::Property, sum::Member, Definition, ImplBlock, Record, Sum},
-    Attribute, Block, Function, FunctionCall, IrFile, Namespace, Type, TypeDef, Value, Visibility,
+    Attribute, Block, Function, FunctionCall, IdentifierPath, IrFile, Namespace, Type, TypeDef,
+    Value, Visibility,
 };
 use baker_layer_pb::{LayerRequest, LayerResponse};
 use baker_pkg_pb::{
@@ -11,6 +12,9 @@ use baker_pkg_pb::{
     Enum, File, Message, PackageGraph,
 };
 use heck::CamelCase;
+
+// TODO: Generate std::fmt::Display for enums
+// TODO: Generate `all` and `count` static methods for enums
 
 const DEFAULT_FIELD_VISIBILITY_OPTION: &str = "baker.default_field_visibility";
 const FIELD_VISIBILITY_OPTION: &str = "baker.field_visibility";
@@ -96,9 +100,19 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
             oneof.name.clone(),
             Property {
                 r#type: Some(Type {
-                    fundamental: Fundamental::Optional as i32,
+                    name: Some(Name::Fundamental(Fundamental::Optional as i32)),
                     generics: vec![Type {
-                        name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
+                        name: Some(Name::Identifier({
+                            let mut identifier = IdentifierPath::from_dotted_path(&msg.name);
+                            identifier
+                                .segments
+                                .push(baker_ir_pb::identifier_path::Segment {
+                                    name: oneof.name.to_camel_case(),
+                                    ..Default::default()
+                                });
+
+                            Box::new(identifier)
+                        })),
                         ..Default::default()
                     }],
                     ..Default::default()
@@ -116,10 +130,7 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
 
     // TODO: use the `default` option when generating `impl Default`.
     Ok(TypeDef {
-        header: Some(Type {
-            name: msg.name.clone(),
-            ..Default::default()
-        }),
+        header: Some(Type::with_name(&msg.name)),
         definition: Some(Definition::Record(Record { properties })),
         documentation: msg.documentation.take().unwrap_or_default(),
         attributes: vec![derive_call(&["Clone", "Debug", "Default", "PartialEq"])],
@@ -132,14 +143,11 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
     let mut members = HashMap::with_capacity(enum_.values.len());
     let mut default_member = String::new();
 
-    let enum_type = Type {
-        name: enum_.name,
-        ..Default::default()
-    };
+    let enum_type = Type::with_name(&enum_.name);
 
     for val in enum_.values {
         if val.value == 0 {
-            default_member = format!("{}.{}", enum_type.name, val.name.to_camel_case());
+            default_member = format!("{}.{}", enum_.name, val.name.to_camel_case());
         }
 
         members.insert(
@@ -156,19 +164,15 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
 
     if !default_member.is_empty() {
         let default_impl = ImplBlock {
-            interface: Some(Type {
-                name: "Default".to_owned(),
-                ..Default::default()
-            }),
+            interface: Some(Type::with_name("Default")),
             methods: vec![Function {
-                header: Some(Type {
-                    name: "Default".to_string(),
-                    ..Default::default()
-                }),
+                header: Some(Type::with_name("default")),
                 implementation: Some(Block {
                     statements: vec![],
                     return_value: Some(Value {
-                        value: Some(baker_ir_pb::value::Value::Identifier(default_member)),
+                        value: Some(baker_ir_pb::value::Value::Identifier(
+                            IdentifierPath::from_dotted_path(&default_member),
+                        )),
                     }),
                 }),
                 r#return: Some(enum_type.clone()),
@@ -250,10 +254,10 @@ fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> Ty
     }
 
     TypeDef {
-        header: Some(Type {
-            name: format!("{}.{}", msg.name, oneof.name.to_camel_case()),
-            ..Default::default()
-        }),
+        header: Some(Type::with_name_and_scope(
+            &msg.name,
+            oneof.name.to_camel_case(),
+        )),
         definition: Some(Definition::Sum(Sum { members })),
         documentation: oneof.documentation().to_string(),
         attributes: vec![derive_call(&["Debug", "Clone", "PartialEq"])],
@@ -271,7 +275,6 @@ fn translate_field_type(field: &Field, graph: &PackageGraph) -> Type {
 
     if let Some(key_type) = field.key_type {
         Type {
-            fundamental: Fundamental::Map as i32,
             generics: vec![
                 translate_type(
                     baker_pkg_pb::Type {
@@ -281,20 +284,18 @@ fn translate_field_type(field: &Field, graph: &PackageGraph) -> Type {
                 ),
                 value_type,
             ],
-            ..Default::default()
+            ..Type::with_fundamental(Fundamental::Map)
         }
     } else {
         match field.label() {
             Label::Unset => value_type,
             Label::Optional => Type {
-                fundamental: Fundamental::Optional as i32,
                 generics: vec![value_type],
-                ..Default::default()
+                ..Type::with_fundamental(Fundamental::Optional)
             },
             Label::Repeated => Type {
-                fundamental: Fundamental::Vec as i32,
                 generics: vec![value_type],
-                ..Default::default()
+                ..Type::with_fundamental(Fundamental::Vec)
             },
         }
     }
@@ -303,11 +304,11 @@ fn translate_field_type(field: &Field, graph: &PackageGraph) -> Type {
 fn translate_type(pkg_typ: baker_pkg_pb::Type, graph: &PackageGraph) -> Type {
     use baker_pkg_pb::r#type::*;
 
-    let mut typ = Type::default();
+    let typ;
 
     match pkg_typ.value.unwrap() {
         Value::Bultin(b) => {
-            typ.fundamental = match BuiltIn::from_i32(b).unwrap() {
+            typ = Type::with_fundamental(match BuiltIn::from_i32(b).unwrap() {
                 BuiltIn::Unknown => Fundamental::Unknown,
                 BuiltIn::Double => Fundamental::Double,
                 BuiltIn::Float => Fundamental::Float,
@@ -318,13 +319,13 @@ fn translate_type(pkg_typ: baker_pkg_pb::Type, graph: &PackageGraph) -> Type {
                 BuiltIn::Bool => Fundamental::Bool,
                 BuiltIn::String => Fundamental::String,
                 BuiltIn::Bytes => Fundamental::Bytes,
-            } as i32;
+            });
         }
         Value::Custom(id) => {
             if let Some(msg) = graph.messages.get(&id) {
-                typ.name = msg.name.clone();
+                typ = Type::with_name(&msg.name);
             } else if let Some(enum_) = graph.enums.get(&id) {
-                typ.name = enum_.name.clone();
+                typ = Type::with_name(&enum_.name);
             } else {
                 panic!("could not find type with id {} in graph", id);
             }
@@ -363,11 +364,12 @@ fn derive_call(traits: &[&str]) -> Attribute {
     use baker_ir_pb::attribute::Value as AttrValue;
     Attribute {
         value: Some(AttrValue::Call(FunctionCall {
-            function: "derive".to_string(),
+            function: Some(IdentifierPath::from_dotted_path("derive")),
             args: traits
                 .iter()
+                .map(|t| IdentifierPath::from_dotted_path(&t))
                 .map(|t| Value {
-                    value: Some(baker_ir_pb::value::Value::Identifier(t.to_string())),
+                    value: Some(baker_ir_pb::value::Value::Identifier(t)),
                 })
                 .collect(),
             ..Default::default()

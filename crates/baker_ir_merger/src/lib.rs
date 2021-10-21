@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use baker_ir_pb::{type_def::Definition, Attribute, IrFile, Namespace, TypeDef};
+use baker_ir_pb::{type_def::Definition, Attribute, Import, IrFile, Namespace, TypeDef};
 
 // A type that can merge [`IrFile`] definitions of multiple layers
 // into a single definition.
@@ -21,8 +21,6 @@ impl IrMerger {
         } else {
             self.insert_file(ir_file);
         }
-
-        dbg!(&self.type_def_maps);
     }
 
     fn merge(&mut self, ir_file: IrFile) {
@@ -65,8 +63,10 @@ fn visit_namespaces(
     curr_ns_path: &[String],
 ) {
     for (idx, type_def) in ns.types.iter().enumerate() {
-        let name = &type_def.header.as_ref().unwrap().name;
-        type_def_map.insert(name.to_string(), (file_id, curr_ns_path.to_vec(), idx));
+        if let Some(h) = &type_def.header {
+            let name = h.to_string();
+            type_def_map.insert(name, (file_id, curr_ns_path.to_vec(), idx));
+        }
     }
 
     if !ns.nested_namespaces.is_empty() {
@@ -92,8 +92,10 @@ fn merge_namespaces(
     prev.interfaces.extend(new.interfaces);
     prev.functions.extend(new.functions);
 
-    for type_def in new.types {
-        let name = &type_def.header.as_ref().unwrap().name;
+    merge_imports(&mut prev.imports, new.imports);
+
+    for mut type_def in new.types {
+        let name = &type_def.header.as_ref().unwrap().to_string();
         if let Some((def_file_id, ns_path, def_idx)) = &type_def_map.get(name) {
             // TODO: return an error here instead of panicking.
             assert_eq!(file_id, *def_file_id, "definitions in different files");
@@ -103,7 +105,12 @@ fn merge_namespaces(
                 curr_ns = curr_ns.nested_namespaces.get_mut(ns).unwrap();
             }
 
+            let ns = type_def.associated_namespace.take();
             merge_type_def(&mut curr_ns.types[*def_idx], type_def);
+
+            if let Some(ns) = ns {
+                merge_namespaces(curr_ns, ns, file_id, type_def_map, curr_ns_path);
+            }
         } else {
             type_def_map.insert(
                 name.to_string(),
@@ -158,12 +165,17 @@ fn merge_type_def(prev: &mut TypeDef, new: TypeDef) {
                 }
             }
         }
-        Some((prev, new)) => panic!("conflicting definitions: {:?} vs {:?}", prev, new),
+        Some((prev, new)) => panic!("conflicting definitions: {:#?} vs {:#?}", prev, new),
         None => {}
     }
 }
 
 fn merge_attributes(prev: &mut Vec<Attribute>, new: Vec<Attribute>) {
     // TODO: think better on how to merge attributes.
+    prev.extend(new);
+}
+
+fn merge_imports(prev: &mut Vec<Import>, new: Vec<Import>) {
+    // TODO: improve merging
     prev.extend(new);
 }

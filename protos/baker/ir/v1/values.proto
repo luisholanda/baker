@@ -2,16 +2,39 @@ syntax = "proto3";
 
 package baker.ir.v1;
 
+import "baker/ir/v1/types.proto";
+
 // A IR value.
 message Value {
+  // A tuple of values.
+  message Tuple {
+    // Values in the tuple.
+    repeated Value values = 1;
+  }
+
+  message MethodCall {
+    Value receiver = 1;
+    FunctionCall method = 2;
+  }
+
+  message Cast {
+    Value value = 1;
+    Type cast_as = 2;
+  }
+
   // The value
   oneof value {
     // A function call.
     FunctionCall call = 2;
     // An identifier.
-    string identifier = 3;
+    IdentifierPath identifier = 3;
     // A string value.
     string string_value = 4;
+    // A tuple value.
+    Tuple tuple = 5;
+    // A method call.
+    MethodCall method = 6;
+    Cast cast = 7;
     // Await a given value.
     Value await = 9;
   };
@@ -20,9 +43,22 @@ message Value {
 // A IR function call.
 message FunctionCall {
   // The function being called.
-  string function = 1;
+  IdentifierPath function = 1;
   // Positional arguments in the call.
   repeated Value args = 2;
   // Keyword arguments in the call.
   map<string, Value> kwargs = 3;
+}
+
+// A pattern.
+message Pattern {
+  // The value of the pattern.
+  oneof value {
+    // A identifier pattern.
+    IdentifierPath identifier = 1;
+    // A sum pattern.
+    FunctionCall sum = 2;
+    // A constant.
+    Value constant = 3;
+  }
 }

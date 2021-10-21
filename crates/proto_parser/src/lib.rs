@@ -371,11 +371,11 @@ fn message(input: &str) -> Result<Message> {
         Enum(Enum<'i>),
         Message(Message<'i>),
         OneOf(OneOf<'i>),
+        Option(Options<'i>),
     }
 
     let (s, comments) = comments(input)?;
     let (s, name) = sequence::delimited(MESSAGE, field_name, OPEN_BRACE)(s)?;
-    let (s, options) = multi::many0(option)(s)?;
 
     let (s, parts) = multi::many1(branch::alt((
         combinator::map(enum_, MessageEvent::Enum),
@@ -383,6 +383,7 @@ fn message(input: &str) -> Result<Message> {
         combinator::map(message, MessageEvent::Message),
         combinator::map(field, MessageEvent::Field),
         combinator::map(map_field, MessageEvent::Field),
+        combinator::map(multi::many1(option), MessageEvent::Option),
     )))(s)?;
 
     let (s, _) = CLOSE_BRACE(s)?;
@@ -390,7 +391,7 @@ fn message(input: &str) -> Result<Message> {
     let mut message = Message {
         name,
         comments,
-        options,
+        options: vec![],
         fields: vec![],
         oneofs: vec![],
         enums: vec![],
@@ -403,6 +404,7 @@ fn message(input: &str) -> Result<Message> {
             MessageEvent::Field(field) => message.fields.push(field),
             MessageEvent::Message(msg) => message.messages.push(msg),
             MessageEvent::OneOf(on) => message.oneofs.push(on),
+            MessageEvent::Option(opts) => message.options.extend(opts),
         }
     }
 

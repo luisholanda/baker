@@ -3,7 +3,7 @@ use std::{collections::HashMap, io};
 use baker_api_pb::*;
 use baker_ir_pb::{
     type_def::{record::Property, sum::Member, Definition, Record, Sum},
-    Attribute, IrFile, Namespace, Type, TypeDef,
+    Attribute, IdentifierPath, IrFile, Namespace, Type, TypeDef,
 };
 use baker_layer_pb::{LayerRequest, LayerResponse};
 use baker_pkg_pb::{
@@ -102,10 +102,7 @@ fn generate_message(mut msg: Message) -> io::Result<Vec<TypeDef>> {
     }
 
     defs.push(TypeDef {
-        header: Some(Type {
-            name: std::mem::take(&mut msg.name),
-            ..Default::default()
-        }),
+        header: Some(Type::with_name(&msg.name)),
         definition: Some(Definition::Record(Record { properties })),
         attributes: vec![serde_derive_attr(), serde_rename_all_attr(default_case)],
         ..Default::default()
@@ -133,12 +130,8 @@ fn handle_field_attrs(
         let fb = translate_field_behavior_opt(val, FIELD_BEHAVIOR_FIELD_OPTION)?;
 
         match fb {
-            FieldBehavior::InputOnly => {
-                attrs.push(serde_generic_arg_attr("skip_serializing".to_string()))
-            }
-            FieldBehavior::OutputOnly => {
-                attrs.push(serde_generic_arg_attr("skip_deserializing".to_string()))
-            }
+            FieldBehavior::InputOnly => attrs.push(serde_generic_arg_attr("skip_serializing")),
+            FieldBehavior::OutputOnly => attrs.push(serde_generic_arg_attr("skip_deserializing")),
             _ => {}
         }
     }
@@ -188,10 +181,7 @@ fn generate_enum(mut enum_: Enum) -> io::Result<TypeDef> {
     }
 
     Ok(TypeDef {
-        header: Some(Type {
-            name: std::mem::take(&mut enum_.name),
-            ..Default::default()
-        }),
+        header: Some(Type::with_name(&enum_.name)),
         definition: Some(Definition::Sum(Sum { members })),
         attributes: vec![serde_derive_attr(), serde_rename_all_attr(default_case)],
         ..Default::default()
@@ -222,10 +212,10 @@ fn generate_oneof(
     }
 
     Ok(TypeDef {
-        header: Some(Type {
-            name: format!("{}.{}", msg_name, oneof.name.to_camel_case()),
-            ..Default::default()
-        }),
+        header: Some(Type::with_name_and_scope(
+            msg_name,
+            oneof.name.to_camel_case(),
+        )),
         definition: Some(Definition::Sum(Sum { members })),
         attributes: vec![serde_derive_attr(), serde_rename_all_attr(oneof_case)],
         ..Default::default()
@@ -233,11 +223,11 @@ fn generate_oneof(
 }
 
 fn serde_flatten_attr() -> Attribute {
-    serde_generic_arg_attr("flatten".to_string())
+    serde_generic_arg_attr("flatten")
 }
 
 fn serde_default_attr() -> Attribute {
-    serde_generic_arg_attr("default".to_string())
+    serde_generic_arg_attr("default")
 }
 
 fn serde_alias_attr(alias: String) -> Attribute {
@@ -270,7 +260,7 @@ fn serde_generic_kwargs_attr(kwarg_name: &str, value: String) -> Attribute {
     Attribute {
         value: Some(baker_ir_pb::attribute::Value::Call(
             baker_ir_pb::FunctionCall {
-                function: "Serde".to_string(),
+                function: Some(IdentifierPath::from_dotted_path("serde")),
                 args: vec![],
                 kwargs: {
                     let mut map = HashMap::new();
@@ -288,13 +278,15 @@ fn serde_generic_kwargs_attr(kwarg_name: &str, value: String) -> Attribute {
     }
 }
 
-fn serde_generic_arg_attr(arg: String) -> Attribute {
+fn serde_generic_arg_attr(arg: &str) -> Attribute {
     Attribute {
         value: Some(baker_ir_pb::attribute::Value::Call(
             baker_ir_pb::FunctionCall {
-                function: "Serde".to_string(),
+                function: Some(IdentifierPath::from_dotted_path("serde")),
                 args: vec![baker_ir_pb::Value {
-                    value: Some(baker_ir_pb::value::Value::Identifier(arg)),
+                    value: Some(baker_ir_pb::value::Value::Identifier(
+                        IdentifierPath::from_dotted_path(arg),
+                    )),
                 }],
                 kwargs: Default::default(),
             },
@@ -303,25 +295,23 @@ fn serde_generic_arg_attr(arg: String) -> Attribute {
 }
 
 fn serde_derive_attr() -> Attribute {
+    derive_call(&["serde.Serialize", "serde.Deserialize"])
+}
+
+fn derive_call(traits: &[&str]) -> Attribute {
+    use baker_ir_pb::attribute::Value as AttrValue;
     Attribute {
-        value: Some(baker_ir_pb::attribute::Value::Call(
-            baker_ir_pb::FunctionCall {
-                function: "Derive".to_string(),
-                args: vec![
-                    baker_ir_pb::Value {
-                        value: Some(baker_ir_pb::value::Value::Identifier(
-                            "Serialize".to_string(),
-                        )),
-                    },
-                    baker_ir_pb::Value {
-                        value: Some(baker_ir_pb::value::Value::Identifier(
-                            "Deserialize".to_string(),
-                        )),
-                    },
-                ],
-                kwargs: Default::default(),
-            },
-        )),
+        value: Some(AttrValue::Call(baker_ir_pb::FunctionCall {
+            function: Some(IdentifierPath::from_dotted_path("derive")),
+            args: traits
+                .iter()
+                .map(|t| IdentifierPath::from_dotted_path(&t).global())
+                .map(|t| baker_ir_pb::Value {
+                    value: Some(baker_ir_pb::value::Value::Identifier(t)),
+                })
+                .collect(),
+            ..Default::default()
+        })),
     }
 }
 

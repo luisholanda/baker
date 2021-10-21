@@ -3,6 +3,7 @@ CODEGENS := $(shell find codegens/ -mindepth 1 -maxdepth 1 -type d -exec basenam
 BAKER := target/debug/baker
 
 LAYER_BINS := rust_types \
+							rust_diesel \
 							rust_serde
 LAYER_BINS := $(addprefix target/debug/, $(LAYER_BINS))
 CODEGEN_BINS := $(addprefix target/debug/, $(CODEGENS))

@@ -4,6 +4,16 @@ package baker.orm;
 
 import "google/protobuf/descriptor.proto";
 
+// TODO: refactor these options.
+//
+// Currently they incentivise storing children/parents inside messages,
+// which can cause N+1 query problems, complicate desnecessarily the
+// API interface, or increasing the payload sizes.
+//
+// What we should support is simillar to what diesel does: many-to-one
+// and one-to-one relations, and maybe a way of aggregating then automatically
+// in a message.
+
 extend google.protobuf.FieldOptions {
   // Links the field type with the current message with a relationship.
   baker.orm.RelationshipType relationship = 2011;

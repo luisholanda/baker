@@ -1,9 +1,6 @@
 const PROTOS: &[&str] = &[
-    "../../protos/baker/ir/v1/file.proto",
-    "../../protos/baker/ir/v1/items.proto",
-    "../../protos/baker/ir/v1/statement.proto",
-    "../../protos/baker/ir/v1/types.proto",
-    "../../protos/baker/ir/v1/values.proto",
+    "../../protos/baker/orm/relationship.proto",
+    "../../protos/baker/orm/schema.proto",
 ];
 
 fn main() -> std::io::Result<()> {
