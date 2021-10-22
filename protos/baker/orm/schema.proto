@@ -12,6 +12,8 @@ extend google.protobuf.EnumOptions {
   baker.api.NameCase database_enum_value_case = 2042;
   // Indicate that the enum is stored as a number in the database.
   bool database_use_int_values = 2043;
+  // Path to the database type if it is defined separated from the application type.
+  string database_type_path = 2044;
 }
 
 extend google.protobuf.FieldOptions {

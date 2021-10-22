@@ -261,13 +261,13 @@ fn serde_generic_kwargs_attr(kwarg_name: &str, value: String) -> Attribute {
         value: Some(baker_ir_pb::attribute::Value::Call(
             baker_ir_pb::FunctionCall {
                 function: Some(IdentifierPath::from_dotted_path("serde")),
-                args: vec![],
                 kwargs: {
                     let mut map = HashMap::new();
                     map.insert(kwarg_name.to_string(), baker_ir_pb::Value::string(value));
 
                     map
                 },
+                ..Default::default()
             },
         )),
     }
@@ -281,7 +281,7 @@ fn serde_generic_arg_attr(arg: &str) -> Attribute {
                 args: vec![baker_ir_pb::Value::identifier(
                     IdentifierPath::from_dotted_path(arg),
                 )],
-                kwargs: Default::default(),
+                ..Default::default()
             },
         )),
     }

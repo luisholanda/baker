@@ -46,7 +46,7 @@ fn main() -> std::io::Result<()> {
     }
 
     loader.load().expect("failed to load package graph");
-    let graph = dbg!(loader.graph());
+    let graph = loader.graph();
 
     let request = LayerRequest {
         packages: Some(graph.into_pb()),
@@ -67,7 +67,7 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    let files = dbg!(merger.into_files());
+    let files = merger.into_files();
     {
         let req = CodegenRequest {
             packages: request.packages,

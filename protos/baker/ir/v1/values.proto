@@ -52,6 +52,23 @@ message Value {
     Value right = 3;
   }
 
+  message UnaryOp {
+    enum Op {
+      // Conventional default. Don't use.
+      UNKNOWN = 0;
+      // Dereference the value.
+      DEREF = 1;
+      // Try operator `?`, the semantics depend on the language.
+      TRY = 2;
+    }
+
+    // Left side of the operation.
+    Value value = 1;
+    // The operator to apply.
+    Op operator = 2;
+  }
+
+
   enum ByRef {
     BY_VALUE = 0;
     CONST_REF = 1;
@@ -72,10 +89,16 @@ message Value {
     MethodCall method = 6;
     // Apply a binary operator.
     BinOp bin_op = 7;
+    // Boolean value.
+    bool bool_value = 8;
     // Await a given value.
     Value await = 9;
     // Cast a value to another.
     Cast cast = 10;
+    // Unary operation.
+    UnaryOp un_op = 11;
+    // A binary value.
+    bytes bytes_value = 12;
   };
 
   ByRef by_ref = 20;
@@ -89,6 +112,8 @@ message FunctionCall {
   repeated Value args = 2;
   // Keyword arguments in the call.
   map<string, Value> kwargs = 3;
+  // Is this function a macro?
+  bool is_macro = 4;
 }
 
 // A pattern.

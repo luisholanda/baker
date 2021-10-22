@@ -1,6 +1,7 @@
 include!(concat!(env!("OUT_DIR"), "/baker.orm.rs"));
 
 pub const DATABASE_TYPE_ENUM_OPTION: &str = "baker.orm.database_type";
+pub const DATABASE_TYPE_PATH_ENUM_OPTION: &str = "baker.orm.database_type_path";
 pub const DATABASE_ENUM_VALUE_CASE_ENUM_OPTION: &str = "baker.orm.database_enum_value_case";
 pub const DATABASE_USE_INT_VALUES_ENUM_OPTION: &str = "baker.orm.database.use_int_values";
 

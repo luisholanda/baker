@@ -1,10 +1,11 @@
 use std::{collections::HashMap, io};
 
+use baker_api_pb::NameCase;
 use baker_ir_pb::{r#type::Fundamental, Type};
 use baker_orm_pb::*;
 use baker_pkg_pb::{
     r#type::{BuiltIn, Value},
-    Message, PackageGraph,
+    Enum, Message, PackageGraph,
 };
 
 pub struct MsgModel {
@@ -67,7 +68,6 @@ impl MsgModel {
                         field_types.insert(f.name.clone(), typ);
                     }
                     Some(Value::Custom(c)) => {
-                        dbg!(c);
                         let typ = pkg
                             .enums
                             .get(c)
@@ -96,4 +96,98 @@ impl MsgModel {
             field_types,
         }))
     }
+}
+
+pub struct EnumModel {
+    pub(crate) database_type: String,
+    pub(crate) database_type_path: Option<String>,
+    pub(crate) name_case: NameCase,
+    pub(crate) use_int_values: bool,
+}
+
+impl EnumModel {
+    pub fn from_opts(enum_: &mut Enum) -> io::Result<Option<Self>> {
+        let database_type = if let Some(val) = enum_.options.remove(DATABASE_TYPE_ENUM_OPTION) {
+            crate::translate_opt_value_to_str(val)?
+        } else {
+            return Ok(None);
+        };
+
+        let database_type_path =
+            if let Some(val) = enum_.options.remove(DATABASE_TYPE_PATH_ENUM_OPTION) {
+                Some(crate::translate_opt_value_to_str(val)?)
+            } else {
+                None
+            };
+
+        let case = if let Some(val) = enum_.options.remove(DATABASE_ENUM_VALUE_CASE_ENUM_OPTION) {
+            translate_name_case_opt(val, DATABASE_ENUM_VALUE_CASE_ENUM_OPTION)?
+        } else {
+            NameCase::ScreamingSnakeCase
+        };
+
+        let use_int_values =
+            if let Some(val) = enum_.options.remove(DATABASE_USE_INT_VALUES_ENUM_OPTION) {
+                match val.value {
+                    Some(baker_pkg_pb::option::value::Value::BooleanValue(val)) => val,
+                    v => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "Invalid value for option '{}': {:?}",
+                                DATABASE_USE_INT_VALUES_ENUM_OPTION, v
+                            ),
+                        ))
+                    }
+                }
+            } else {
+                false
+            };
+
+        Ok(Some(Self {
+            database_type,
+            database_type_path,
+            name_case: case,
+            use_int_values,
+        }))
+    }
+
+    pub(crate) fn case_fn(&self) -> fn(&str) -> String {
+        match self.name_case {
+            NameCase::Unspecified => |s| s.to_string(),
+            NameCase::CamelCase => heck::MixedCase::to_mixed_case,
+            NameCase::SnakeCase => heck::SnakeCase::to_snake_case,
+            NameCase::KebabCase => heck::KebabCase::to_kebab_case,
+            NameCase::PascalCase => heck::CamelCase::to_camel_case,
+            NameCase::ScreamingSnakeCase => heck::ShoutySnakeCase::to_shouty_snake_case,
+            NameCase::ScreamingKebabCase => heck::ShoutyKebabCase::to_shouty_kebab_case,
+        }
+    }
+}
+
+fn translate_name_case_opt(val: baker_pkg_pb::option::Value, opt: &str) -> io::Result<NameCase> {
+    let case = match val.value.unwrap() {
+        baker_pkg_pb::option::value::Value::IdentifierValue(ident) => match ident.as_str() {
+            "CAMEL_CASE" => NameCase::CamelCase,
+            "SNAKE_CASE" => NameCase::SnakeCase,
+            "KEBAB_CASE" => NameCase::KebabCase,
+            "PASCAL_CASE" => NameCase::PascalCase,
+            "SCREAMING_SNAKE_CASE" => NameCase::ScreamingSnakeCase,
+            "SCREAMING_KEBAB_CASE" => NameCase::ScreamingKebabCase,
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Invalid value for option '{}': {}", opt, ident),
+                ))
+            }
+        },
+        v => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Invalid value for option '{}': {:?}", opt, v),
+            ))
+        }
+    };
+
+    Ok(case)
 }

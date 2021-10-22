@@ -84,7 +84,8 @@ message TypeDef {
     // Type constraints in this block.
     repeated Constraint constraints = 6;
 
-    // TODO(impls): handle constants.
+    // Constants defined in this block.
+    repeated Constant constants = 7;
   }
 
   // Constraints in a specific type.
@@ -193,6 +194,9 @@ message Function {
 
   // Is this function an async function?
   bool asyncness = 9;
+
+  // Constraints in this function.
+  repeated TypeDef.Constraint constraints = 10;
 }
 
 // An interface definition.
@@ -262,6 +266,22 @@ message Import {
   optional string alias = 4;
 }
 
+// A constant value.
+message Constant {
+  // The name of the constant.
+  string name = 1;
+  // The type of the constant.
+  Type type = 2;
+  // The value of the constant.
+  Value value = 3;
+  // Attributes associated with the constant.
+  repeated Attribute attributes = 4;
+  // Documentation associated with the constant.
+  optional string documentation = 5;
+
+  Visibility visibility = 6;
+}
+
 message Namespace {
   // All generated types.
   repeated TypeDef types = 2;
@@ -277,6 +297,9 @@ message Namespace {
 
   // Imports in this namespace.
   repeated Import imports = 7;
+
+  // Constants in this namespace.
+  repeated Constant constants = 8;
 }
 
 // Possible visibility levels.

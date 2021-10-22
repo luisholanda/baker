@@ -77,6 +77,10 @@ impl fmt::Display for Type {
 }
 
 impl IdentifierPath {
+    pub fn self_() -> Self {
+        Self::from_dotted_path("self")
+    }
+
     pub fn from_dotted_path(name: &str) -> Self {
         Self {
             segments: name
@@ -118,9 +122,23 @@ impl IdentifierPath {
     pub fn last(&self) -> &self::identifier_path::Segment {
         self.segments.last().unwrap()
     }
+
+    pub fn child(&self, seg: self::identifier_path::Segment) -> Self {
+        let mut child = self.clone();
+        child.segments.push(seg);
+        child
+    }
 }
 
 impl Type {
+    pub const SELF: Self = Self {
+        name: Some(self::r#type::Name::Fundamental(
+            self::r#type::Fundamental::Self_ as i32,
+        )),
+        lifetimes: vec![],
+        generics: vec![],
+    };
+
     pub fn with_path(path: IdentifierPath) -> Self {
         Self {
             name: Some(self::r#type::Name::Identifier(Box::new(path))),
@@ -130,6 +148,10 @@ impl Type {
 
     pub fn with_name(name: &str) -> Self {
         Self::with_path(IdentifierPath::from_dotted_path(name))
+    }
+
+    pub fn with_global_name(name: &str) -> Self {
+        Self::with_path(IdentifierPath::from_dotted_path(name).global())
     }
 
     pub fn with_name_and_scope(scope: &str, name: String) -> Self {
@@ -161,12 +183,51 @@ impl Type {
             self::r#type::Fundamental::Unknown
         }
     }
+
+    pub fn set_generics(mut self, generics: Vec<Self>) -> Self {
+        self.generics = generics;
+        self
+    }
+
+    pub fn set_generic(mut self, generic: Self) -> Self {
+        self.generics.push(generic);
+        self
+    }
+
+    pub fn as_generic_of(self, wrapper: Self) -> Self {
+        wrapper.set_generic(self)
+    }
 }
 
 impl Value {
+    pub const TRUE: Self = Self {
+        value: Some(self::value::Value::BoolValue(true)),
+        by_ref: self::value::ByRef::ByValue as i32,
+    };
+
+    pub const FALSE: Self = Self {
+        value: Some(self::value::Value::BoolValue(true)),
+        by_ref: self::value::ByRef::ByValue as i32,
+    };
+
+    pub fn boolean(value: bool) -> Self {
+        if value {
+            Self::TRUE
+        } else {
+            Self::FALSE
+        }
+    }
+
     pub fn string(value: String) -> Self {
         Self {
             value: Some(self::value::Value::StringValue(value)),
+            ..Default::default()
+        }
+    }
+
+    pub fn bytes(value: String) -> Self {
+        Self {
+            value: Some(self::value::Value::BytesValue(value.into_bytes())),
             ..Default::default()
         }
     }

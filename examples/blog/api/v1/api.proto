@@ -54,6 +54,8 @@ message Post {
 
   // Possible formats of content in a Post.
   enum ContentFormat {
+    option (baker.orm.database_type) = "blog.content_format";
+
     // Conventional default.
     UNKNOWN = 0;
     // The post was written in plain text.

@@ -6,6 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+baker_api_pb = { path = "../../crates/baker_api_pb" }
 baker_ir_pb = { path = "../../crates/baker_ir_pb" }
 baker_layer_pb = { path = "../../crates/baker_layer_pb" }
 baker_orm_pb = { path = "../../crates/baker_orm_pb" }

@@ -8,8 +8,8 @@ use baker_ir_pb::{
         sum::{member::Value, Member},
         Constraint, Definition, ImplBlock,
     },
-    Attribute, Block, Function, IdentifierPath, Import, Namespace, Pattern, Statement, Type,
-    TypeAlias, TypeDef, Visibility,
+    Attribute, Block, Constant, Function, IdentifierPath, Import, Namespace, Pattern, Statement,
+    Type, TypeAlias, TypeDef, Visibility,
 };
 use heck::SnakeCase;
 use proc_macro2::{Span, TokenStream};
@@ -70,9 +70,15 @@ impl Codegen {
             .into_iter()
             .map(|a| self.codegen_type_alias(a, true));
 
+        let constants = ns
+            .constants
+            .into_iter()
+            .map(|c| self.codegen_constant(c, true));
+
         quote! {
             #(#imports)*
             #(#aliases)*
+            #(#constants)*
             #(#types)*
             #(#ns_tokens)*
         }
@@ -359,11 +365,21 @@ impl Codegen {
                 syn::Type::Verbatim(quote! { #name<#(#generics),*> })
             }
             fr @ (Fundamental::ShrdRef | Fundamental::UniqRef) => {
-                syn::Type::Reference(syn::TypeReference {
+                let mutability = (fr == Fundamental::UniqRef).then(syn::token::Mut::default);
+                let base = syn::Type::Reference(syn::TypeReference {
                     and_token: syn::token::And::default(),
-                    lifetime: ty.lifetimes.first().map(|lf| make_lifetime(lf.to_string())),
-                    mutability: (fr == Fundamental::UniqRef).then(syn::token::Mut::default),
+                    lifetime: ty.lifetimes.pop().map(|lf| make_lifetime(lf)),
+                    mutability,
                     elem: Box::new(self.type_to_syn_type(ty.generics.remove(0))),
+                });
+
+                ty.lifetimes.into_iter().rev().fold(base, |ty, lf| {
+                    syn::Type::Reference(syn::TypeReference {
+                        and_token: syn::token::And::default(),
+                        lifetime: Some(make_lifetime(lf)),
+                        mutability,
+                        elem: Box::new(ty),
+                    })
                 })
             }
             fr @ (Fundamental::ConstPtr | Fundamental::Ptr) => syn::Type::Ptr(syn::TypePtr {
@@ -382,6 +398,14 @@ impl Codegen {
             Fundamental::String => syn::Type::Verbatim(quote! { ::std::string::String }),
             Fundamental::Bytes => syn::Type::Verbatim(quote! { ::bytes::Bytes }),
             Fundamental::Self_ => syn::Type::Verbatim(quote! { Self }),
+            Fundamental::Slice => {
+                let generic = self.type_to_syn_type(ty.generics.remove(0));
+
+                syn::Type::Slice(syn::TypeSlice {
+                    bracket_token: syn::token::Bracket::default(),
+                    elem: Box::new(generic),
+                })
+            }
         }
     }
 
@@ -520,22 +544,29 @@ impl Codegen {
             .into_iter()
             .map(|at| self.codegen_type_alias(at, false));
 
-        let where_clause = if block.constraints.is_empty() {
-            quote! {}
-        } else {
-            let constraints = block
-                .constraints
-                .into_iter()
-                .map(|c| self.codegen_constraint(c));
+        let constants = block
+            .constants
+            .into_iter()
+            .map(|c| self.codegen_constant(c, false));
 
-            quote! { where #(#constraints)* }
-        };
+        let where_clause = self.codegen_where_clause(block.constraints);
 
         quote! {
             impl #gen_prefix #trait_prefix #ty_header #where_clause {
                 #(#assoc_types)*
+                #(#constants)*
                 #(#methods)*
             }
+        }
+    }
+
+    fn codegen_where_clause(&self, constraints: Vec<Constraint>) -> TokenStream {
+        if constraints.is_empty() {
+            quote! {}
+        } else {
+            let constraints = constraints.into_iter().map(|c| self.codegen_constraint(c));
+
+            quote! { where #(#constraints)* }
         }
     }
 
@@ -608,10 +639,12 @@ impl Codegen {
             quote! {}
         };
 
+        let where_clause = self.codegen_where_clause(func.constraints);
+
         quote! {
             #doc
             #attributes
-            #vis #asyncness fn #header (#receiver #(#arguments),*) #ret_ty #block
+            #vis #asyncness fn #header (#receiver #(#arguments),*) #ret_ty #where_clause #block
         }
     }
 
@@ -695,6 +728,31 @@ impl Codegen {
         }
     }
 
+    fn codegen_constant(&self, constant: Constant, gen_vis: bool) -> TokenStream {
+        let name = make_ident(&constant.name);
+        let vis = if gen_vis {
+            codegen_visibility(constant.visibility())
+        } else {
+            quote! {}
+        };
+
+        let doc = self.codegen_doc_attributes(constant.documentation());
+
+        let typ = if let Some(typ) = constant.r#type {
+            self.codegen_type(typ)
+        } else {
+            quote! {}
+        };
+
+        let value = if let Some(val) = constant.value {
+            self.codegen_value(val)
+        } else {
+            quote! {}
+        };
+
+        quote! { #doc #vis const #name: #typ = #value; }
+    }
+
     fn codegen_value(&self, value: baker_ir_pb::Value) -> TokenStream {
         use baker_ir_pb::value::{ByRef, Value};
 
@@ -708,18 +766,21 @@ impl Codegen {
             Some(Value::Call(call)) => {
                 let func = self.identifier_path_to_path(&call.function.unwrap(), true);
                 let args = call.args.into_iter().map(|a| self.codegen_value(a));
-                quote! { #func(#(#args),*) }
+
+                let suffix = if call.is_macro {
+                    quote! { ! }
+                } else {
+                    quote! {}
+                };
+
+                quote! { #func#suffix(#(#args),*) }
             }
             Some(Value::Identifier(ident)) => {
                 let ident = self.identifier_path_to_path(&ident, true);
 
                 quote! { #ident }
             }
-            Some(Value::StringValue(value)) => {
-                let lit = syn::Lit::Str(syn::LitStr::new(&value, Span::mixed_site()));
-
-                quote! { #lit }
-            }
+            Some(Value::StringValue(value)) => quote! { #value },
             Some(Value::Tuple(baker_ir_pb::value::Tuple { values })) => {
                 let values = values.into_iter().map(|v| self.codegen_value(v));
 
@@ -749,6 +810,7 @@ impl Codegen {
                     BinOp::Or => quote! { #left || #right },
                 }
             }
+            Some(Value::BoolValue(b)) => quote! { #b },
             Some(Value::Await(val)) => {
                 let value = self.codegen_value(*val);
 
@@ -759,6 +821,21 @@ impl Codegen {
                 let typ = self.codegen_type(cast.cast_as.unwrap());
 
                 quote! { ( #value as #typ ) }
+            }
+            Some(Value::UnOp(mut op)) => {
+                use baker_ir_pb::value::unary_op::Op;
+                let value = self.codegen_value(*op.value.take().unwrap());
+
+                match op.operator() {
+                    Op::Unknown => value,
+                    Op::Deref => quote! { *#value },
+                    Op::Try => quote! { #value? },
+                }
+            }
+            Some(Value::BytesValue(b)) => {
+                let lit = syn::LitByteStr::new(&b, Span::mixed_site());
+
+                quote! { #lit }
             }
             None => quote! {},
         };

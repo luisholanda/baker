@@ -2,17 +2,18 @@ use std::{collections::HashMap, io};
 
 use baker_ir_pb::{
     statement::{assignment::AssignmentType, Assignment},
+    type_def::Constraint,
     Attribute, FunctionCall, IdentifierPath, IrFile, Namespace, Type, TypeDef, Value,
 };
 use baker_layer_pb::{LayerRequest, LayerResponse};
 use baker_pkg_pb::{Enum, File, Message, PackageGraph};
 
-use crate::model::MsgModel;
+use crate::model::{EnumModel, MsgModel};
 
+mod enums;
 mod messages;
 mod model;
 
-// TODO: handle oneofs in schema opts
 // TODO: Handle enums
 // TODO: handle relationships
 // TODO: Handle relationships
@@ -48,14 +49,14 @@ fn generate_file(file: File, graph: &mut PackageGraph) -> io::Result<IrFile> {
         generate_message(msg, &graph, &mut root)?;
     }
 
-    //for en_id in file.enums {
-    //    let enum_ = graph
-    //        .enums
-    //        .remove(&en_id)
-    //        .expect("missing enum declaration");
+    for en_id in file.enums {
+        let enum_ = graph
+            .enums
+            .remove(&en_id)
+            .expect("missing enum declaration");
 
-    //    root.types.push(generate_enum(enum_)?);
-    //}
+        generate_enum(enum_, &mut root)?;
+    }
 
     Ok(IrFile {
         file_id: file.id,
@@ -79,8 +80,24 @@ fn generate_message(mut msg: Message, pkg: &PackageGraph, ns: &mut Namespace) ->
     Ok(())
 }
 
-fn generate_enum(enum_: Enum) -> io::Result<TypeDef> {
-    todo!()
+fn generate_enum(mut enum_: Enum, ns: &mut Namespace) -> io::Result<()> {
+    if let Some(model) = EnumModel::from_opts(&mut enum_)? {
+        let def = self::enums::generate_database_enum(&enum_, &model);
+        ns.types.push(def);
+    }
+
+    Ok(())
+}
+
+pub(crate) fn db_generic() -> (Type, Constraint) {
+    let db = Type::with_name("__DB");
+    let db_backend_constraint = Constraint {
+        constrained: Some(db.clone()),
+        interfaces: vec![Type::with_global_name("diesel.backend.Backend")],
+        lifetimes: vec![],
+    };
+
+    (db, db_backend_constraint)
 }
 
 pub(crate) fn translate_opt_value_to_str(val: baker_pkg_pb::option::Value) -> io::Result<String> {
@@ -118,6 +135,7 @@ pub(crate) fn function_call_attr(
             function: Some(IdentifierPath::from_dotted_path(&function)),
             args,
             kwargs,
+            ..Default::default()
         })),
     }
 }
