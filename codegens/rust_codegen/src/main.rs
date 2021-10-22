@@ -6,7 +6,7 @@ use baker_ir_pb::{
     type_def::{
         record::Property,
         sum::{member::Value, Member},
-        Definition, ImplBlock,
+        Constraint, Definition, ImplBlock,
     },
     Attribute, Block, Function, IdentifierPath, Import, Namespace, Pattern, Statement, Type,
     TypeAlias, TypeDef, Visibility,
@@ -154,22 +154,7 @@ impl Codegen {
                     .into_iter()
                     .map(|(n, m)| self.codegen_member(n, m));
 
-                if let Some(Name::Identifier(name)) = &ty.name {
-                    let enum_name = make_ident(&name.last().name);
-                    let mod_name = make_ident(&name.last().name.to_snake_case());
-
-                    quote! {
-                        enum #header_tokens { #(#members)* }
-
-                        pub mod #mod_name {
-                            //! Module used to export enum members for use in generated code.
-                            //! This can be removed when you stop using the generator.
-                            pub use super::#enum_name::*;
-                        }
-                    }
-                } else {
-                    unreachable!()
-                }
+                quote! { enum #header_tokens { #(#members)* } }
             }
         }
     }
@@ -500,9 +485,10 @@ impl Codegen {
     }
 
     fn type_name_to_path(&self, typ_name: Name) -> Option<syn::TypePath> {
-        match typ_name {
-            Name::Identifier(ident) => Some(self.identifier_path_to_path(&ident, false)),
-            Name::Fundamental(f) => None,
+        if let Name::Identifier(ident) = typ_name {
+            Some(self.identifier_path_to_path(&ident, false))
+        } else {
+            None
         }
     }
 
@@ -534,11 +520,49 @@ impl Codegen {
             .into_iter()
             .map(|at| self.codegen_type_alias(at, false));
 
+        let where_clause = if block.constraints.is_empty() {
+            quote! {}
+        } else {
+            let constraints = block
+                .constraints
+                .into_iter()
+                .map(|c| self.codegen_constraint(c));
+
+            quote! { where #(#constraints)* }
+        };
+
         quote! {
-            impl #gen_prefix #trait_prefix #ty_header {
+            impl #gen_prefix #trait_prefix #ty_header #where_clause {
                 #(#assoc_types)*
                 #(#methods)*
             }
+        }
+    }
+
+    fn codegen_constraint(&self, constraint: Constraint) -> TokenStream {
+        if let Some(constrained) = constraint.constrained {
+            if constraint.interfaces.is_empty() && constraint.lifetimes.is_empty() {
+                quote! {}
+            } else {
+                let constrained = self.codegen_type(constrained);
+
+                let infix = if constraint.interfaces.is_empty() || constraint.interfaces.is_empty()
+                {
+                    quote! {}
+                } else {
+                    quote! { + }
+                };
+
+                let lifetimes = self.codegen_lifetimes(constraint.lifetimes);
+                let traits = constraint
+                    .interfaces
+                    .into_iter()
+                    .map(|iface| self.codegen_type(iface));
+
+                quote! { #constrained: #(#traits)+* #infix #(#lifetimes)+*, }
+            }
+        } else {
+            quote! {}
         }
     }
 
@@ -672,9 +696,15 @@ impl Codegen {
     }
 
     fn codegen_value(&self, value: baker_ir_pb::Value) -> TokenStream {
-        use baker_ir_pb::value::Value;
+        use baker_ir_pb::value::{ByRef, Value};
 
-        match value.value {
+        let prefix = match value.by_ref() {
+            ByRef::ByValue => quote! {},
+            ByRef::ConstRef => quote! { & },
+            ByRef::MutRef => quote! { &mut  },
+        };
+
+        let value_tokens = match value.value {
             Some(Value::Call(call)) => {
                 let func = self.identifier_path_to_path(&call.function.unwrap(), true);
                 let args = call.args.into_iter().map(|a| self.codegen_value(a));
@@ -702,19 +732,38 @@ impl Codegen {
 
                 quote! { #receiver.#method }
             }
-            Some(Value::Cast(cast)) => {
-                let value = self.codegen_value(*cast.value.unwrap());
-                let typ = self.codegen_type(cast.cast_as.unwrap());
+            Some(Value::BinOp(mut op)) => {
+                use baker_ir_pb::value::bin_op::Op as BinOp;
+                let left = self.codegen_value(*op.left.take().unwrap());
+                let right = self.codegen_value(*op.right.take().unwrap());
 
-                quote! { ( #value as #typ ) }
+                match op.operator() {
+                    BinOp::Unknown => quote! {},
+                    BinOp::Eq => quote! { #left == #right },
+                    BinOp::Ne => quote! { #left != #right },
+                    BinOp::Lt => quote! { #left < #right },
+                    BinOp::Le => quote! { #left <= #right },
+                    BinOp::Gt => quote! { #left > #right },
+                    BinOp::Ge => quote! { #left >= #right },
+                    BinOp::And => quote! { #left && #right },
+                    BinOp::Or => quote! { #left || #right },
+                }
             }
             Some(Value::Await(val)) => {
                 let value = self.codegen_value(*val);
 
                 quote! { #value.await }
             }
+            Some(Value::Cast(cast)) => {
+                let value = self.codegen_value(*cast.value.unwrap());
+                let typ = self.codegen_type(cast.cast_as.unwrap());
+
+                quote! { ( #value as #typ ) }
+            }
             None => quote! {},
-        }
+        };
+
+        quote! { #prefix #value_tokens }
     }
 
     fn codegen_pattern(&self, pattern: Pattern) -> TokenStream {
@@ -726,9 +775,7 @@ impl Codegen {
             Some(Value::Identifier(ident)) => {
                 self.identifier_path_to_path(&ident, true).to_token_stream()
             }
-            Some(Value::Sum(sum)) => self.codegen_value(baker_ir_pb::Value {
-                value: Some(baker_ir_pb::value::Value::Call(sum)),
-            }),
+            Some(Value::Sum(sum)) => self.codegen_value(baker_ir_pb::Value::func_call(sum)),
         }
     }
 }

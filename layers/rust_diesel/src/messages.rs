@@ -68,13 +68,19 @@ fn handle_table_attributes(
     model: &MsgModel,
     ns: &mut Namespace,
 ) -> io::Result<()> {
-    // Ensure the schema is in scope so that diesel's derives can find it.
-    let name = format!("__table_{}", model.table_name);
-    ns.imports.push(Import {
-        module: Some(IdentifierPath::from_dotted_path(&model.table_path)),
-        alias: Some(name.clone()),
-        ..Default::default()
-    });
+    let name = if model.table_path == model.table_name {
+        model.table_name.clone()
+    } else {
+        // Ensure the schema is in scope so that diesel's derives can find it.
+        let name = format!("__table_{}", model.table_name);
+        ns.imports.push(Import {
+            module: Some(IdentifierPath::from_dotted_path(&model.table_path)),
+            alias: Some(name.clone()),
+            ..Default::default()
+        });
+
+        name
+    };
 
     msg_def.attributes.extend([
         crate::derive_call(&["diesel.Insertable", "diesel.Identifiable"]),
@@ -104,18 +110,7 @@ fn handle_oneof_schema_traits(
 ) -> io::Result<()> {
     let table_ty = Type::with_name_and_scope(&model.table_path, "table".to_string());
 
-    let name = oneof.name.to_camel_case();
-    let scope = format!("{}.{}", msg_name, name);
     let oneof_ty = Type::with_name_and_scope(msg_name, oneof.name.to_camel_case());
-
-    let field_names: Vec<_> = oneof
-        .fields
-        .iter()
-        .map(|f| {
-            let name = format!("{}.{}", scope, f.name.to_camel_case());
-            IdentifierPath::from_dotted_path(&name)
-        })
-        .collect();
 
     let type_to_eq = |typ: &Type, col: &str| Type {
         generics: vec![
@@ -137,23 +132,24 @@ fn handle_oneof_schema_traits(
         )
     });
 
+    let camel_case_name = oneof.name.to_camel_case();
     let (alias, insertable) = generate_insertable_block(
         &oneof,
+        &camel_case_name,
         &model,
-        &field_names,
         field_tys,
         &table_ty,
         vec![],
-        &format!("__{}_Values", oneof.name),
+        &format!("__{}Values", camel_case_name),
     );
     let (ref_alias, ref_insertable) = generate_insertable_block(
         &oneof,
+        &camel_case_name,
         &model,
-        &field_names,
         ref_field_tys,
         &table_ty,
         vec!["insert".into()],
-        &format!("__{}_ref_Values", oneof.name),
+        &format!("__{}ByRefValues", camel_case_name),
     );
 
     let (row_alias, queryable) = generate_queryable_block(&oneof, &model);
@@ -193,8 +189,8 @@ fn handle_oneof_schema_traits(
 /// compiles and is simpler to understand.
 fn generate_insertable_block(
     oneof: &OneOf,
+    oneof_name: &str,
     model: &MsgModel,
-    field_enum_names: &[IdentifierPath],
     field_tps: Vec<Type>,
     table_ty: &Type,
     lifetime: Vec<String>,
@@ -233,13 +229,26 @@ fn generate_insertable_block(
     let values_assoc_type = Type::with_path(values_assoc_type_ident);
 
     let recv_var = Value::identifier(IdentifierPath::from_dotted_path("x"));
-    let patterns = field_enum_names.iter().map(|n| Pattern {
-        value: Some(baker_ir_pb::pattern::Value::Sum(FunctionCall {
-            function: Some(n.clone()),
-            args: vec![recv_var.clone()],
-            ..Default::default()
-        })),
-    });
+    let patterns = oneof
+        .fields
+        .iter()
+        .map(|f| {
+            let f_name = f.name.to_camel_case();
+            let path = if lifetime.is_empty() {
+                format!("Self.{}", f_name)
+            } else {
+                format!("{}.{}", oneof_name, f_name)
+            };
+
+            IdentifierPath::from_dotted_path(&path)
+        })
+        .map(|id| Pattern {
+            value: Some(baker_ir_pb::pattern::Value::Sum(FunctionCall {
+                function: Some(id),
+                args: vec![recv_var.clone()],
+                ..Default::default()
+            })),
+        });
 
     let values_var = IdentifierPath::from_dotted_path("values");
 
@@ -283,10 +292,18 @@ fn generate_insertable_block(
         }
     });
 
-    let match_ = baker_ir_pb::statement::Match {
+    let mut match_ = baker_ir_pb::statement::Match {
         value: Some(Value::identifier(IdentifierPath::from_dotted_path("self"))),
         arms: arms.collect(),
     };
+    match_.arms.push(baker_ir_pb::statement::r#match::MatchArm {
+        pattern: vec![Pattern {
+            value: Some(baker_ir_pb::pattern::Value::Constant(Value::identifier(
+                IdentifierPath::from_dotted_path("_"),
+            ))),
+        }],
+        block: Some(Default::default()),
+    });
 
     let block = ImplBlock {
         interface: Some(Type {
@@ -307,9 +324,12 @@ fn generate_insertable_block(
                 statements: vec![
                     Statement::assignment(Assignment {
                         ident: Some(values_var.clone()),
-                        assignment_type: AssignmentType::DefConstant as i32,
+                        assignment_type: AssignmentType::DefMutable as i32,
                         r#type: Some(qualifier_alias),
-                        value: None,
+                        value: Some(Value::func_call(FunctionCall {
+                            function: Some(IdentifierPath::from_dotted_path("Default.default")),
+                            ..Default::default()
+                        })),
                     }),
                     Statement::switch(match_),
                 ],
@@ -338,7 +358,7 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
     let field_tys = fields_to_type(&oneof.fields, model, |ty, _| ty.clone());
     let field_tys_tuple = fields_to_options_tuple(field_tys);
 
-    let fields_row = Type::with_name(&format!("__{}_Queryable_Row", oneof.name));
+    let fields_row = Type::with_name(&format!("__{}QueryableRow", oneof.name.to_camel_case()));
     let field_tys_tuple_alias_def = TypeAlias {
         alias: Some(fields_row.clone()),
         aliased: Some(field_tys_tuple),
@@ -398,53 +418,70 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
     let value_var = IdentifierPath::from_dotted_path("value");
     let decl_value = Statement::assignment(Assignment {
         ident: Some(value_var.clone()),
-        assignment_type: AssignmentType::DefConstant as i32,
+        assignment_type: AssignmentType::DefMutable as i32,
         r#type: Some(Type::with_fundamental(Fundamental::Self_)),
+        value: Some(Value::func_call(FunctionCall {
+            function: Some(IdentifierPath::from_dotted_path("Self.default")),
+            ..Default::default()
+        })),
         ..Default::default()
     });
 
     let some = IdentifierPath::from_dotted_path("std.option.Option.Some");
-    let match_row = Statement::switch(baker_ir_pb::statement::Match {
-        value: Some(Value::identifier(row_var)),
-        arms: oneof
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(idx, f)| {
-                let match_var = Value::identifier(IdentifierPath::from_dotted_path("x"));
-                let match_value = Value::func_call(FunctionCall {
-                    function: Some(some.clone()),
-                    args: vec![match_var.clone()],
-                    ..Default::default()
-                });
-                let pattern = Pattern {
-                    value: Some(baker_ir_pb::pattern::Value::Constant(
-                        n_tuple_value_with_a_some(oneof.fields.len(), idx, match_value),
-                    )),
-                };
-
-                let variant_name = format!("Self.{}", f.name.to_camel_case());
-                let set_value = Statement::assignment(Assignment {
-                    ident: Some(value_var.clone()),
-                    value: Some(Value::func_call(FunctionCall {
-                        function: Some(IdentifierPath::from_dotted_path(&variant_name)),
-                        args: vec![match_var],
+    let match_row = {
+        let mut match_ = baker_ir_pb::statement::Match {
+            value: Some(Value::identifier(row_var)),
+            arms: oneof
+                .fields
+                .iter()
+                .enumerate()
+                .map(|(idx, f)| {
+                    let match_var = Value::identifier(IdentifierPath::from_dotted_path("x"));
+                    let match_value = Value::func_call(FunctionCall {
+                        function: Some(some.clone()),
+                        args: vec![match_var.clone()],
                         ..Default::default()
-                    })),
-                    ..Default::default()
-                });
+                    });
+                    let pattern = Pattern {
+                        value: Some(baker_ir_pb::pattern::Value::Constant(
+                            n_tuple_value_with_a_some(oneof.fields.len(), idx, match_value),
+                        )),
+                    };
 
-                baker_ir_pb::statement::r#match::MatchArm {
-                    pattern: vec![pattern],
-                    block: Some(Block {
-                        statements: vec![set_value],
+                    let variant_name = format!("Self.{}", f.name.to_camel_case());
+                    let set_value = Statement::assignment(Assignment {
+                        ident: Some(value_var.clone()),
+                        value: Some(Value::func_call(FunctionCall {
+                            function: Some(IdentifierPath::from_dotted_path(&variant_name)),
+                            args: vec![match_var],
+                            ..Default::default()
+                        })),
                         ..Default::default()
-                    }),
-                }
-            })
-            .collect(),
-        ..Default::default()
-    });
+                    });
+
+                    baker_ir_pb::statement::r#match::MatchArm {
+                        pattern: vec![pattern],
+                        block: Some(Block {
+                            statements: vec![set_value],
+                            ..Default::default()
+                        }),
+                    }
+                })
+                .collect(),
+            ..Default::default()
+        };
+
+        match_.arms.push(baker_ir_pb::statement::r#match::MatchArm {
+            pattern: vec![Pattern {
+                value: Some(baker_ir_pb::pattern::Value::Constant(Value::identifier(
+                    IdentifierPath::from_dotted_path("_"),
+                ))),
+            }],
+            block: Some(Default::default()),
+        });
+
+        Statement::switch(match_)
+    };
 
     let build_impl = Function {
         header: Some(Type::with_name("build")),

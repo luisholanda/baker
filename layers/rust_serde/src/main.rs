@@ -264,12 +264,7 @@ fn serde_generic_kwargs_attr(kwarg_name: &str, value: String) -> Attribute {
                 args: vec![],
                 kwargs: {
                     let mut map = HashMap::new();
-                    map.insert(
-                        kwarg_name.to_string(),
-                        baker_ir_pb::Value {
-                            value: Some(baker_ir_pb::value::Value::StringValue(value)),
-                        },
-                    );
+                    map.insert(kwarg_name.to_string(), baker_ir_pb::Value::string(value));
 
                     map
                 },
@@ -283,11 +278,9 @@ fn serde_generic_arg_attr(arg: &str) -> Attribute {
         value: Some(baker_ir_pb::attribute::Value::Call(
             baker_ir_pb::FunctionCall {
                 function: Some(IdentifierPath::from_dotted_path("serde")),
-                args: vec![baker_ir_pb::Value {
-                    value: Some(baker_ir_pb::value::Value::Identifier(
-                        IdentifierPath::from_dotted_path(arg),
-                    )),
-                }],
+                args: vec![baker_ir_pb::Value::identifier(
+                    IdentifierPath::from_dotted_path(arg),
+                )],
                 kwargs: Default::default(),
             },
         )),
@@ -306,9 +299,7 @@ fn derive_call(traits: &[&str]) -> Attribute {
             args: traits
                 .iter()
                 .map(|t| IdentifierPath::from_dotted_path(&t).global())
-                .map(|t| baker_ir_pb::Value {
-                    value: Some(baker_ir_pb::value::Value::Identifier(t)),
-                })
+                .map(baker_ir_pb::Value::identifier)
                 .collect(),
             ..Default::default()
         })),

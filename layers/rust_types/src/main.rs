@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io};
 
 use baker_ir_pb::{
+    function::Argument,
     r#type::{Fundamental, Name},
     type_def::{record::Property, sum::Member, Definition, ImplBlock, Record, Sum},
     Attribute, Block, Function, FunctionCall, IdentifierPath, IrFile, Namespace, Type, TypeDef,
@@ -100,21 +101,17 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
             oneof.name.clone(),
             Property {
                 r#type: Some(Type {
-                    name: Some(Name::Fundamental(Fundamental::Optional as i32)),
-                    generics: vec![Type {
-                        name: Some(Name::Identifier({
-                            let mut identifier = IdentifierPath::from_dotted_path(&msg.name);
-                            identifier
-                                .segments
-                                .push(baker_ir_pb::identifier_path::Segment {
-                                    name: oneof.name.to_camel_case(),
-                                    ..Default::default()
-                                });
+                    name: Some(Name::Identifier({
+                        let mut identifier = IdentifierPath::from_dotted_path(&msg.name);
+                        identifier
+                            .segments
+                            .push(baker_ir_pb::identifier_path::Segment {
+                                name: oneof.name.to_camel_case(),
+                                ..Default::default()
+                            });
 
-                            Box::new(identifier)
-                        })),
-                        ..Default::default()
-                    }],
+                        Box::new(identifier)
+                    })),
                     ..Default::default()
                 }),
                 documentation: oneof.documentation.clone().unwrap_or_default(),
@@ -147,7 +144,7 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
 
     for val in enum_.values {
         if val.value == 0 {
-            default_member = format!("{}.{}", enum_.name, val.name.to_camel_case());
+            default_member = format!("Self.{}", val.name.to_camel_case());
         }
 
         members.insert(
@@ -164,18 +161,18 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
 
     if !default_member.is_empty() {
         let default_impl = ImplBlock {
-            interface: Some(Type::with_name("Default")),
+            interface: Some(Type::with_path(
+                IdentifierPath::from_dotted_path("std.default.Default").global(),
+            )),
             methods: vec![Function {
                 header: Some(Type::with_name("default")),
                 implementation: Some(Block {
                     statements: vec![],
-                    return_value: Some(Value {
-                        value: Some(baker_ir_pb::value::Value::Identifier(
-                            IdentifierPath::from_dotted_path(&default_member),
-                        )),
-                    }),
+                    return_value: Some(Value::identifier(IdentifierPath::from_dotted_path(
+                        &default_member,
+                    ))),
                 }),
-                r#return: Some(enum_type.clone()),
+                r#return: Some(Type::with_fundamental(Fundamental::Self_)),
                 ..Default::default()
             }],
             ..Default::default()
@@ -253,6 +250,51 @@ fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> Ty
         );
     }
 
+    members.insert(
+        "NotSet".to_string(),
+        Member {
+            attributes: vec![],
+            documentation: r"Default value for the OneOf. Used when no field is set.".to_string(),
+            value: None,
+        },
+    );
+
+    let not_set = Value::identifier(IdentifierPath::from_dotted_path("Self.NotSet"));
+
+    let default_impl = ImplBlock {
+        interface: Some(Type::with_path(
+            IdentifierPath::from_dotted_path("std.default.Default").global(),
+        )),
+        methods: vec![Function {
+            header: Some(Type::with_name("default")),
+            r#return: Some(Type::with_fundamental(Fundamental::Self_)),
+            implementation: Some(Block {
+                statements: vec![],
+                return_value: Some(not_set.clone()),
+            }),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let self_ = Value::identifier(IdentifierPath::from_dotted_path("self"));
+    let is_set_impl = ImplBlock {
+        methods: vec![Function {
+            header: Some(Type::with_name("is_set")),
+            receiver: Some(Type::with_fundamental(Fundamental::ShrdRef)),
+            r#return: Some(Type::with_fundamental(Fundamental::Bool)),
+            visibility: Visibility::Public as i32,
+            implementation: Some(Block {
+                statements: vec![],
+                return_value: Some(
+                    self_.operate(baker_ir_pb::value::bin_op::Op::Ne, not_set.const_ref()),
+                ),
+            }),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
     TypeDef {
         header: Some(Type::with_name_and_scope(
             &msg.name,
@@ -262,6 +304,7 @@ fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> Ty
         documentation: oneof.documentation().to_string(),
         attributes: vec![derive_call(&["Debug", "Clone", "PartialEq"])],
         visibility: Visibility::Public as i32,
+        blocks: vec![is_set_impl, default_impl],
         ..Default::default()
     }
 }
@@ -368,9 +411,7 @@ fn derive_call(traits: &[&str]) -> Attribute {
             args: traits
                 .iter()
                 .map(|t| IdentifierPath::from_dotted_path(&t))
-                .map(|t| Value {
-                    value: Some(baker_ir_pb::value::Value::Identifier(t)),
-                })
+                .map(Value::identifier)
                 .collect(),
             ..Default::default()
         })),

@@ -130,9 +130,7 @@ pub(crate) fn derive_call(traits: &[&str]) -> Attribute {
             args: traits
                 .iter()
                 .map(|t| IdentifierPath::from_dotted_path(&t).global())
-                .map(|t| Value {
-                    value: Some(baker_ir_pb::value::Value::Identifier(t)),
-                })
+                .map(Value::identifier)
                 .collect(),
             ..Default::default()
         })),

@@ -22,6 +22,42 @@ message Value {
     Type cast_as = 2;
   }
 
+  message BinOp {
+    enum Op {
+      // Conventional default. Don't use.
+      UNKNOWN = 0;
+      // Equals
+      EQ = 1;
+      // Not Equals
+      NE = 2;
+      // Less Than
+      LT = 3;
+      // Less Equals
+      LE = 4;
+      // Greater Than
+      GT = 5;
+      // Greater Equals
+      GE = 6;
+      // And
+      AND = 7;
+      // Or
+      OR = 8;
+    }
+
+    // Left side of the operation.
+    Value left = 1;
+    // The operator to apply.
+    Op operator = 2;
+    // Right side of the operation.
+    Value right = 3;
+  }
+
+  enum ByRef {
+    BY_VALUE = 0;
+    CONST_REF = 1;
+    MUT_REF = 2;
+  }
+
   // The value
   oneof value {
     // A function call.
@@ -34,10 +70,15 @@ message Value {
     Tuple tuple = 5;
     // A method call.
     MethodCall method = 6;
-    Cast cast = 7;
+    // Apply a binary operator.
+    BinOp bin_op = 7;
     // Await a given value.
     Value await = 9;
+    // Cast a value to another.
+    Cast cast = 10;
   };
+
+  ByRef by_ref = 20;
 }
 
 // A IR function call.

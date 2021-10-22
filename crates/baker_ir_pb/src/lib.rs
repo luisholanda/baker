@@ -167,24 +167,28 @@ impl Value {
     pub fn string(value: String) -> Self {
         Self {
             value: Some(self::value::Value::StringValue(value)),
+            ..Default::default()
         }
     }
 
     pub fn identifier(identifier: IdentifierPath) -> Self {
         Self {
             value: Some(self::value::Value::Identifier(identifier)),
+            ..Default::default()
         }
     }
 
     pub fn func_call(call: FunctionCall) -> Self {
         Self {
             value: Some(self::value::Value::Call(call)),
+            ..Default::default()
         }
     }
 
     pub fn tuple(values: Vec<Self>) -> Self {
         Self {
             value: Some(self::value::Value::Tuple(self::value::Tuple { values })),
+            ..Default::default()
         }
     }
 
@@ -194,6 +198,18 @@ impl Value {
                 value: Some(Box::new(self)),
                 cast_as: Some(ty),
             }))),
+            ..Default::default()
+        }
+    }
+
+    pub fn operate(self, op: self::value::bin_op::Op, right: Self) -> Self {
+        Self {
+            value: Some(self::value::Value::BinOp(Box::new(self::value::BinOp {
+                left: Some(Box::new(self)),
+                operator: op as i32,
+                right: Some(Box::new(right)),
+            }))),
+            ..Default::default()
         }
     }
 
@@ -205,7 +221,18 @@ impl Value {
                     method: Some(call),
                 },
             ))),
+            ..Default::default()
         }
+    }
+
+    pub fn const_ref(mut self) -> Self {
+        self.set_by_ref(self::value::ByRef::ConstRef);
+        self
+    }
+
+    pub fn mut_ref(mut self) -> Self {
+        self.set_by_ref(self::value::ByRef::MutRef);
+        self
     }
 }
 
