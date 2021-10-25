@@ -21,6 +21,9 @@ message PackageGraph {
 
   // All loaded files.
   map<uint32, File> files = 5;
+
+  // All loaded services.
+  map<uint32, Service> services = 6;
 }
 
 // A loaded package.
@@ -211,11 +214,11 @@ message Service {
     // Name of the method.
     string name = 1;
 
-    // Type of the request.
-    Type request = 2;
+    // ID of the request's message type.
+    uint32 request = 2;
 
-    // Type of the response.
-    Type response = 3;
+    // ID of the response's message type.
+    uint32 response = 3;
 
     // Options of the method.
     map<string, Option.Value> options = 5;

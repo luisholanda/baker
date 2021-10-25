@@ -46,7 +46,7 @@ fn main() -> std::io::Result<()> {
     }
 
     loader.load().expect("failed to load package graph");
-    let graph = loader.graph();
+    let graph = dbg!(loader.graph());
 
     let request = LayerRequest {
         packages: Some(graph.into_pb()),

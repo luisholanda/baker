@@ -377,7 +377,7 @@ fn message(input: &str) -> Result<Message> {
     let (s, comments) = comments(input)?;
     let (s, name) = sequence::delimited(MESSAGE, field_name, OPEN_BRACE)(s)?;
 
-    let (s, parts) = multi::many1(branch::alt((
+    let (s, parts) = multi::many0(branch::alt((
         combinator::map(enum_, MessageEvent::Enum),
         combinator::map(oneof_field, MessageEvent::OneOf),
         combinator::map(message, MessageEvent::Message),

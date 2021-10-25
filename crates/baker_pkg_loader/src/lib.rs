@@ -8,11 +8,14 @@ use baker_pkg_graph::PkgGraph;
 use baker_pkg_pb::{
     message::{field, Field, OneOf},
     option::{value::Value as OptValueType, Value as OptValue},
-    r#type as typ, Type,
+    r#type as typ,
+    service::Rpc,
+    Service as PkgService, Type,
 };
 use idgen::{Id, SequentialGenerator};
 use proto_parser::ast::{
     Constant, Enum, Field as AstField, FieldLabel, FieldType, File, FullIdent, Message, Options,
+    Service,
 };
 
 #[derive(Debug)]
@@ -135,6 +138,8 @@ impl PkgLoaderState {
             pkg.files.push(file_id);
         }
 
+        self.load_parsed_services(std::mem::take(&mut parsed_file.services), &scope, file_id);
+
         file_id
     }
 
@@ -213,6 +218,59 @@ impl PkgLoaderState {
             } else {
                 self.graph.file_mut(file_id).root_enums.push(enum_id);
             }
+        }
+    }
+
+    fn load_parsed_services(&mut self, services: Vec<Service>, scope: &Scope, file_id: Id) {
+        for srv in services {
+            let abs_name = scope.relative_to_absolute(srv.name);
+            let mut pkg_srv = PkgService::default();
+            pkg_srv.name = abs_name;
+
+            translate_comments(&srv.comments, &mut pkg_srv.documentation);
+            translate_options(srv.options, &mut pkg_srv.options);
+
+            for rpc in srv.rpcs {
+                let mut pkg_rpc = Rpc::default();
+                pkg_rpc.name = rpc.name.to_string();
+
+                translate_comments(&rpc.comments, &mut pkg_rpc.documentation);
+                translate_options(rpc.options, &mut pkg_rpc.options);
+
+                match rpc.request {
+                    FieldType::Custom(d) => {
+                        let abs_ident = scope.relative_to_absolute(&full_ident_to_string(&d));
+                        if let Some(id) = self.types_ids.get(&abs_ident) {
+                            pkg_rpc.request = *id;
+                        } else {
+                            self.undefined_names.push(UndefinedType {
+                                location: rpc.name.to_string(),
+                                typ: abs_ident,
+                            });
+                        }
+                    }
+                    t => panic!("builtin types can't be used as RPC request types: {:?}", t),
+                };
+
+                match rpc.response {
+                    FieldType::Custom(d) => {
+                        let abs_ident = scope.relative_to_absolute(&full_ident_to_string(&d));
+                        if let Some(id) = self.types_ids.get(&abs_ident) {
+                            pkg_rpc.request = *id;
+                        } else {
+                            self.undefined_names.push(UndefinedType {
+                                location: rpc.name.to_string(),
+                                typ: abs_ident,
+                            });
+                        }
+                    }
+                    t => panic!("builtin types can't be used as RPC request types: {:?}", t),
+                };
+
+                pkg_srv.methods.push(pkg_rpc);
+            }
+
+            self.graph.file_mut(file_id).services.push(pkg_srv);
         }
     }
 
