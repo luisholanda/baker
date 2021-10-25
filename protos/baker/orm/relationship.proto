@@ -26,15 +26,9 @@ enum RelationshipType {
   // Conventional default, don't use.
   RELATIONSHIP_UNSPECIFIED = 0;
 
-  // The field contains children of the entity.
-  CHILDREN = 1;
-
-  // The field contains the parent of the entity.
-  PARENT = 2;
-
   // The field contains the ID of the entity's parent.
   //
   // When using this relationship type, is necessary to also
   // set the `baker.orm.related_type` option.
-  PARENT_ID = 3;
+  PARENT_ID = 1;
 }

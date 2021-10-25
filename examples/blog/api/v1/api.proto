@@ -89,7 +89,7 @@ message LikePostRequest {
 // A user in the service.
 message User {
   option (baker.orm.table_name) = "users";
-  option (baker.orm.table_path) = "crate.bla.users";
+  option (baker.orm.table_path) = "crate.schema.users";
   option (baker.orm.primary_key) = "user_id";
 
   // ID of the user.
@@ -115,6 +115,7 @@ message Post {
   message Comment {
     option (baker.orm.table_name) = "comments";
     option (baker.orm.primary_key) = "comment_id";
+    option (baker.orm.table_path) = "crate.schema.comments";
 
     // ID of the comment.
     int64 id = 1 [
@@ -124,13 +125,13 @@ message Post {
     // ID of the post where this comment was posted.
     int64 post_id = 2 [
       (baker.api.field_behavior) = IMMUTABLE,
-      (baker.orm.releationship) = PARENT_ID,
+      (baker.orm.relationship) = PARENT_ID,
       (baker.orm.related_type) = "blog.api.v1.Post",
     ];
     // Author of the comment.
     int64 author_id = 3 [
       (baker.api.field_behavior) = IMMUTABLE,
-      (baker.orm.releationship) = PARENT_ID,
+      (baker.orm.relationship) = PARENT_ID,
       (baker.orm.related_type) = "blog.api.v1.User",
     ];
     // Content of the comment.
@@ -151,6 +152,7 @@ message Post {
 
   option (baker.orm.table_name) = "posts";
   option (baker.orm.primary_key) = "post_id";
+  option (baker.orm.table_path) = "crate.schema.posts";
 
   // ID of the post.
   int64 id = 1 [
@@ -160,9 +162,9 @@ message Post {
   // Title of the post.
   string title = 2;
   // Likes of the post.
-  uint32 likes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
+  int32 likes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Dislikes of the post.
-  uint32 dislikes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
+  int32 dislikes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Author of the post.
   int64 author_id = 4 [
     (baker.api.field_behavior) = IMMUTABLE,

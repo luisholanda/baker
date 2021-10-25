@@ -90,11 +90,20 @@ pub(crate) fn generate_database_enum(enum_: &Enum, model: &EnumModel) -> TypeDef
 
     blocks.push(generate_to_sql_nullable(database_ty));
 
-    ns.imports.push(Import {
-        module: Some(IdentifierPath::from_dotted_path("std.io.Write")),
-        alias: Some("__Write".to_string()),
-        ..Default::default()
-    });
+    ns.imports.extend([
+        Import {
+            module: Some(IdentifierPath::from_dotted_path("std.io.Write")),
+            alias: Some("__Write".to_string()),
+            ..Default::default()
+        },
+        Import {
+            module: Some(IdentifierPath::from_dotted_path(
+                "diesel.deserialize.FromSql",
+            )),
+            alias: Some("__FromSql".to_string()),
+            ..Default::default()
+        },
+    ]);
 
     TypeDef {
         header: Some(enum_ty),
@@ -312,7 +321,7 @@ fn generate_from_sql_row(db_ty: Type) -> ImplBlock {
         constrained: Some(row_gen.clone()),
         interfaces: vec![Type {
             generics: vec![db.clone()],
-            ..Type::with_global_name("diesel.row")
+            ..Type::with_global_name("diesel.row.Row")
         }],
         lifetimes: vec![],
     };
@@ -542,13 +551,14 @@ fn generate_to_sql(
                 ..Default::default()
             })),
         }),
-        ..to_sql_func_decl(db)
+        ..to_sql_func_decl(db.clone())
     };
 
     ImplBlock {
         interface: Some(interface),
         constraints: vec![db_constraint],
         methods: vec![to_sql],
+        generics: vec![db],
         ..Default::default()
     }
 }
@@ -595,13 +605,14 @@ fn generate_to_sql_nullable(db_ty: Type) -> ImplBlock {
                 ..Default::default()
             })),
         }),
-        ..to_sql_func_decl(db)
+        ..to_sql_func_decl(db.clone())
     };
 
     ImplBlock {
         interface: Some(interface),
         constraints: vec![db_constraints, self_constraint],
         methods: vec![to_sql_impl],
+        generics: vec![db],
         ..Default::default()
     }
 }

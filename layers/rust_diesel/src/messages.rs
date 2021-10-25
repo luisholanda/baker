@@ -99,6 +99,26 @@ fn handle_table_attributes(
         Default::default(),
     ));
 
+    if !model.field_parents.is_empty() {
+        msg_def
+            .attributes
+            .push(crate::derive_call(&["diesel.Associations"], true));
+
+        for (field, parent) in &model.field_parents {
+            let mut karwgs = HashMap::default();
+            karwgs.insert("foreign_key".to_string(), Value::string(field.to_string()));
+            karwgs.insert(
+                "parent".to_string(),
+                Value::identifier(IdentifierPath::from_dotted_path(parent)),
+            );
+            msg_def.attributes.push(crate::function_call_attr(
+                "belongs_to".to_string(),
+                vec![],
+                karwgs,
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -355,7 +375,9 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
     let field_tys = fields_to_type(&oneof.fields, model, |ty, _| ty.clone());
     let field_tys_tuple = fields_to_options_tuple(field_tys);
 
-    let fields_row = Type::with_name(&format!("__{}QueryableRow", oneof.name.to_camel_case()));
+    let fields_row_name =
+        IdentifierPath::from_dotted_path(&format!("__{}QueryableRow", oneof.name.to_camel_case()));
+    let fields_row = Type::with_path(fields_row_name.clone());
     let field_tys_tuple_alias_def = TypeAlias {
         alias: Some(fields_row.clone()),
         aliased: Some(field_tys_tuple),
@@ -401,34 +423,18 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
     });
 
     let row_var = IdentifierPath::from_dotted_path("row");
-    let build_row = Statement::assignment(Assignment {
-        ident: Some(row_var.clone()),
-        assignment_type: AssignmentType::DefConstant as i32,
-        r#type: Some(fields_row),
-        value: Some(Value::func_call(FunctionCall {
-            function: Some(IdentifierPath::from_dotted_path("diesel.Queryable.build").global()),
-            args: vec![Value::identifier(row_var.clone())],
-            ..Default::default()
-        })),
-        ..Default::default()
-    });
-
-    let value_var = IdentifierPath::from_dotted_path("value");
-    let decl_value = Statement::assignment(Assignment {
-        ident: Some(value_var.clone()),
-        assignment_type: AssignmentType::DefMutable as i32,
-        r#type: Some(Type::with_fundamental(Fundamental::Self_)),
-        value: Some(Value::func_call(FunctionCall {
-            function: Some(IdentifierPath::from_dotted_path("Self.default")),
-            ..Default::default()
-        })),
-        ..Default::default()
-    });
 
     let some = IdentifierPath::from_dotted_path("std.option.Option.Some");
     let match_row = {
+        let build_path = fields_row_name.child(Segment::with_name("build".to_string()));
+        let build_row = Value::func_call(FunctionCall {
+            function: Some(build_path),
+            args: vec![Value::identifier(row_var)],
+            ..Default::default()
+        });
+
         let mut match_ = baker_ir_pb::statement::Match {
-            value: Some(Value::identifier(row_var)),
+            value: Some(build_row),
             arms: oneof
                 .fields
                 .iter()
@@ -470,7 +476,15 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
                     IdentifierPath::from_dotted_path("_"),
                 ))),
             }],
-            block: Some(Default::default()),
+            block: Some(Block {
+                statements: vec![],
+                return_value: Some(Value::func_call(FunctionCall {
+                    function: Some(IdentifierPath::from_dotted_path(
+                        "std.default.Default.default",
+                    )),
+                    ..Default::default()
+                })),
+            }),
         });
 
         Statement::switch(match_)
@@ -486,7 +500,7 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
         r#return: Some(Type::with_fundamental(Fundamental::Self_)),
         visibility: Visibility::Private as i32,
         implementation: Some(Block {
-            statements: vec![build_row, decl_value, match_row],
+            statements: vec![match_row],
             return_value: None,
         }),
         ..Default::default()

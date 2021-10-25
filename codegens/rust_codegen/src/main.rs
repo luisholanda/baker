@@ -534,6 +534,7 @@ impl Codegen {
     }
 
     fn codegen_impl_block(&self, block: ImplBlock, ty_header: &TokenStream) -> TokenStream {
+        let is_trait = block.interface.is_some();
         let trait_prefix = if let Some(ty) = block.interface {
             let ty = self.codegen_type(ty);
             quote! { #ty for }
@@ -543,7 +544,10 @@ impl Codegen {
 
         let methods = block.methods.into_iter().map(|mut meth| {
             // Remove visibility from trait functions.
-            meth.set_visibility(Visibility::Private);
+            if is_trait {
+                meth.set_visibility(Visibility::Private);
+            }
+
             self.codegen_function(meth)
         });
 

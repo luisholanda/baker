@@ -14,6 +14,7 @@ pub struct MsgModel {
     pub(crate) primary_key: Vec<String>,
     pub(crate) field_columns: HashMap<String, String>,
     pub(crate) field_types: HashMap<String, Type>,
+    pub(crate) field_parents: HashMap<String, String>,
 }
 
 impl MsgModel {
@@ -40,6 +41,7 @@ impl MsgModel {
 
         let mut field_columns = HashMap::with_capacity(msg.fields.len());
         let mut field_types = HashMap::with_capacity(msg.fields.len());
+        let mut field_parents = HashMap::new();
 
         let fields = msg
             .fields
@@ -86,6 +88,22 @@ impl MsgModel {
             };
 
             field_columns.insert(f.name.clone(), column_name);
+
+            if let Some(rel) = f.options.remove(RELATIONSHIP_FIELD_OPTION) {
+                let rel = translate_relationship_type_opt(rel, RELATIONSHIP_FIELD_OPTION)?;
+
+                if rel == RelationshipType::ParentId {
+                    if let Some(par) = f.options.remove(RELATED_TYPE_FIELD_OPTION) {
+                        field_parents
+                            .insert(f.name.clone(), crate::translate_opt_value_to_str(par)?);
+                    } else {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Field {} missing parent type", f.name),
+                        ));
+                    }
+                }
+            }
         }
 
         Ok(Some(Self {
@@ -94,6 +112,7 @@ impl MsgModel {
             primary_key,
             field_columns,
             field_types,
+            field_parents,
         }))
     }
 }
@@ -154,6 +173,32 @@ fn translate_name_case_opt(val: baker_pkg_pb::option::Value, opt: &str) -> io::R
             "PASCAL_CASE" => NameCase::PascalCase,
             "SCREAMING_SNAKE_CASE" => NameCase::ScreamingSnakeCase,
             "SCREAMING_KEBAB_CASE" => NameCase::ScreamingKebabCase,
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Invalid value for option '{}': {}", opt, ident),
+                ))
+            }
+        },
+        v => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Invalid value for option '{}': {:?}", opt, v),
+            ))
+        }
+    };
+
+    Ok(case)
+}
+
+fn translate_relationship_type_opt(
+    val: baker_pkg_pb::option::Value,
+    opt: &str,
+) -> io::Result<RelationshipType> {
+    let case = match val.value.unwrap() {
+        baker_pkg_pb::option::value::Value::IdentifierValue(ident) => match ident.as_str() {
+            "RELATIONSHIP_UNSPECIFIED" => RelationshipType::RelationshipUnspecified,
+            "PARENT_ID" => RelationshipType::ParentId,
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,

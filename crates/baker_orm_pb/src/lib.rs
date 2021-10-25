@@ -9,3 +9,6 @@ pub const COLUMN_NAME_FIELD_OPTION: &str = "baker.orm.column_name";
 pub const TABLE_NAME_MSG_OPTION: &str = "baker.orm.table_name";
 pub const TABLE_PATH_MSG_OPTION: &str = "baker.orm.table_path";
 pub const PRIMARY_KEY_MSG_OPTION: &str = "baker.orm.primary_key";
+
+pub const RELATIONSHIP_FIELD_OPTION: &str = "baker.orm.relationship";
+pub const RELATED_TYPE_FIELD_OPTION: &str = "baker.orm.related_type";
