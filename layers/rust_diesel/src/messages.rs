@@ -83,7 +83,7 @@ fn handle_table_attributes(
     };
 
     msg_def.attributes.extend([
-        crate::derive_call(&["diesel.Insertable", "diesel.Identifiable"]),
+        crate::derive_call(&["diesel.Insertable", "diesel.Identifiable"], true),
         crate::assignment_attr("table_name", Value::string(name)),
     ]);
 
@@ -197,7 +197,6 @@ fn generate_insertable_block(
     alias_name: &str,
 ) -> (TypeAlias, ImplBlock) {
     let some = IdentifierPath::from_dotted_path("std.option.Option.Some").global();
-    let n_fields = field_tps.len();
     let values_qualifier = fields_to_options_tuple(field_tps);
 
     let qualifier_alias = Type {
@@ -266,15 +265,11 @@ fn generate_insertable_block(
             recv_var.clone()
         };
 
-        let case_tuple = n_tuple_value_with_a_some(
-            n_fields,
-            i,
-            Value::func_call(FunctionCall {
-                function: Some(some.clone()),
-                args: vec![expr],
-                ..Default::default()
-            }),
-        );
+        let expr = Value::func_call(FunctionCall {
+            function: Some(some.clone()),
+            args: vec![expr],
+            ..Default::default()
+        });
 
         baker_ir_pb::statement::r#match::MatchArm {
             pattern: vec![p],
@@ -283,7 +278,8 @@ fn generate_insertable_block(
                     statement: Some(baker_ir_pb::statement::Statement::Assignment(Assignment {
                         ident: Some(values_var.clone()),
                         assignment_type: AssignmentType::Reassignment as i32,
-                        value: Some(case_tuple),
+                        value: Some(expr),
+                        field: Some(IdentifierPath::from_dotted_path(&format!("{}", i))),
                         ..Default::default()
                     })),
                 }],
@@ -330,6 +326,7 @@ fn generate_insertable_block(
                             function: Some(IdentifierPath::from_dotted_path("Default.default")),
                             ..Default::default()
                         })),
+                        ..Default::default()
                     }),
                     Statement::switch(match_),
                 ],
@@ -413,6 +410,7 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
             args: vec![Value::identifier(row_var.clone())],
             ..Default::default()
         })),
+        ..Default::default()
     });
 
     let value_var = IdentifierPath::from_dotted_path("value");
@@ -449,21 +447,16 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
                     };
 
                     let variant_name = format!("Self.{}", f.name.to_camel_case());
-                    let set_value = Statement::assignment(Assignment {
-                        ident: Some(value_var.clone()),
-                        value: Some(Value::func_call(FunctionCall {
-                            function: Some(IdentifierPath::from_dotted_path(&variant_name)),
-                            args: vec![match_var],
-                            ..Default::default()
-                        })),
-                        ..Default::default()
-                    });
 
                     baker_ir_pb::statement::r#match::MatchArm {
                         pattern: vec![pattern],
                         block: Some(Block {
-                            statements: vec![set_value],
-                            ..Default::default()
+                            statements: vec![],
+                            return_value: Some(Value::func_call(FunctionCall {
+                                function: Some(IdentifierPath::from_dotted_path(&variant_name)),
+                                args: vec![match_var],
+                                ..Default::default()
+                            })),
                         }),
                     }
                 })
@@ -494,7 +487,7 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
         visibility: Visibility::Private as i32,
         implementation: Some(Block {
             statements: vec![build_row, decl_value, match_row],
-            return_value: Some(Value::identifier(value_var)),
+            return_value: None,
         }),
         ..Default::default()
     };

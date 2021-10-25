@@ -1,7 +1,6 @@
 use std::{collections::HashMap, io};
 
 use baker_ir_pb::{
-    function::Argument,
     r#type::{Fundamental, Name},
     type_def::{record::Property, sum::Member, Definition, ImplBlock, Record, Sum},
     Attribute, Block, Function, FunctionCall, IdentifierPath, IrFile, Namespace, Type, TypeDef,

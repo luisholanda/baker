@@ -41,6 +41,11 @@ message Statement {
     //
     // Can't be set when using `REASSIGNMENT`.
     optional Type type = 4;
+
+    // The field being assigned to.
+    //
+    // If not set, the assignment is a normal assignment.
+    optional IdentifierPath field = 5;
   }
 
   // A switch/pattern match statement.

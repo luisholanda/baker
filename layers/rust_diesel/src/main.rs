@@ -67,7 +67,10 @@ fn generate_file(file: File, graph: &mut PackageGraph) -> io::Result<IrFile> {
 fn generate_message(mut msg: Message, pkg: &PackageGraph, ns: &mut Namespace) -> io::Result<()> {
     let mut msg_def = TypeDef {
         header: Some(Type::with_name(&msg.name)),
-        attributes: vec![derive_call(&["diesel.Queryable", "diesel.QueryableByName"])],
+        attributes: vec![derive_call(
+            &["diesel.Queryable", "diesel.QueryableByName"],
+            true,
+        )],
         ..Default::default()
     };
 
@@ -140,14 +143,21 @@ pub(crate) fn function_call_attr(
     }
 }
 
-pub(crate) fn derive_call(traits: &[&str]) -> Attribute {
+pub(crate) fn derive_call(traits: &[&str], global: bool) -> Attribute {
     use baker_ir_pb::attribute::Value as AttrValue;
     Attribute {
         value: Some(AttrValue::Call(FunctionCall {
             function: Some(IdentifierPath::from_dotted_path("derive")),
             args: traits
                 .iter()
-                .map(|t| IdentifierPath::from_dotted_path(&t).global())
+                .map(|t| {
+                    let t = IdentifierPath::from_dotted_path(&t);
+                    if global {
+                        t.global()
+                    } else {
+                        t
+                    }
+                })
                 .map(Value::identifier)
                 .collect(),
             ..Default::default()

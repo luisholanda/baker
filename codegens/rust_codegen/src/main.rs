@@ -483,6 +483,23 @@ impl Codegen {
         }
     }
 
+    fn identifier_path_to_field<'a>(
+        &self,
+        path: &'a IdentifierPath,
+    ) -> impl Iterator<Item = syn::Member> + 'a {
+        path.segments.iter().map(|s| {
+            if s.name.chars().all(|c| c.is_numeric()) {
+                let idx = syn::Index {
+                    index: s.name.parse().expect("bad field segment"),
+                    span: Span::call_site(),
+                };
+                syn::Member::Unnamed(idx)
+            } else {
+                syn::Member::Named(make_ident(&s.name))
+            }
+        })
+    }
+
     fn identifier_path_segment(
         &self,
         seg: &baker_ir_pb::identifier_path::Segment,
@@ -694,12 +711,14 @@ impl Codegen {
                 use baker_ir_pb::statement::assignment::AssignmentType;
                 let assign_type = assign.assignment_type();
                 let name = self.identifier_path_to_path(&assign.ident.unwrap(), true);
+
                 let value = if let Some(val) = assign.value {
                     let val = self.codegen_value(val);
                     quote! { = #val }
                 } else {
                     quote! {}
                 };
+
                 let typ = if let Some(tp) = assign.r#type {
                     let tp = self.codegen_type(tp);
                     quote! { : #tp }
@@ -708,7 +727,16 @@ impl Codegen {
                 };
 
                 match assign_type {
-                    AssignmentType::Reassignment => quote! { #name #value; },
+                    AssignmentType::Reassignment => {
+                        let field = if let Some(field) = assign.field {
+                            let members = self.identifier_path_to_field(&field);
+                            quote! { . #(#members).* }
+                        } else {
+                            quote! {}
+                        };
+
+                        quote! { #name #field #value; }
+                    }
                     AssignmentType::DefConstant => quote! { let #name #typ #value; },
                     AssignmentType::DefMutable => quote! { let mut #name #typ #value; },
                 }

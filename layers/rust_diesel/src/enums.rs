@@ -120,7 +120,8 @@ fn generate_sql_mapping(enum_: &Enum, model: &EnumModel) -> (Type, TypeDef) {
             header: Some(db_ty),
             definition: Some(Definition::Record(Default::default())),
             attributes: vec![
-                crate::derive_call(&["diesel.SqlType", "Clone", "Copy"]),
+                crate::derive_call(&["diesel.SqlType"], true),
+                crate::derive_call(&["Clone", "Copy"], false),
                 crate::function_call_attr("postgres".to_string(), vec![], {
                     let mut map = HashMap::with_capacity(2);
 

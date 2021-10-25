@@ -102,7 +102,6 @@ pub struct EnumModel {
     pub(crate) database_type: String,
     pub(crate) database_type_path: Option<String>,
     pub(crate) name_case: NameCase,
-    pub(crate) use_int_values: bool,
 }
 
 impl EnumModel {
@@ -126,29 +125,10 @@ impl EnumModel {
             NameCase::ScreamingSnakeCase
         };
 
-        let use_int_values =
-            if let Some(val) = enum_.options.remove(DATABASE_USE_INT_VALUES_ENUM_OPTION) {
-                match val.value {
-                    Some(baker_pkg_pb::option::value::Value::BooleanValue(val)) => val,
-                    v => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!(
-                                "Invalid value for option '{}': {:?}",
-                                DATABASE_USE_INT_VALUES_ENUM_OPTION, v
-                            ),
-                        ))
-                    }
-                }
-            } else {
-                false
-            };
-
         Ok(Some(Self {
             database_type,
             database_type_path,
             name_case: case,
-            use_int_values,
         }))
     }
 
