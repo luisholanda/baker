@@ -23,7 +23,7 @@ pub(crate) fn handle_schema_opts(
     model: &MsgModel,
 ) -> io::Result<()> {
     let mut assoc_ns = Namespace::default();
-    handle_table_attributes(msg_def, model, &mut assoc_ns)?;
+    handle_table_attributes(msg_def, model, msg, &mut assoc_ns)?;
 
     let mut properties = HashMap::with_capacity(msg.fields.len());
     for f in msg.fields.drain(..) {
@@ -66,6 +66,7 @@ pub(crate) fn handle_schema_opts(
 fn handle_table_attributes(
     msg_def: &mut TypeDef,
     model: &MsgModel,
+    msg: &Message,
     ns: &mut Namespace,
 ) -> io::Result<()> {
     let name = if model.table_path == model.table_name {
@@ -117,6 +118,13 @@ fn handle_table_attributes(
                 karwgs,
             ));
         }
+    }
+
+    // TODO: Handle updates when the message has a changeset.
+    if msg.oneofs.is_empty() {
+        msg_def
+            .attributes
+            .push(crate::derive_call(&["diesel.AsChangeset"], true));
     }
 
     Ok(())

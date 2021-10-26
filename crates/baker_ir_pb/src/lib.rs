@@ -184,6 +184,16 @@ impl Type {
         }
     }
 
+    pub fn identifier(&self) -> Option<&IdentifierPath> {
+        use self::r#type::Name;
+
+        if let Some(Name::Identifier(p)) = &self.name {
+            Some(p)
+        } else {
+            None
+        }
+    }
+
     pub fn set_generics(mut self, generics: Vec<Self>) -> Self {
         self.generics = generics;
         self
