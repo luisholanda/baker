@@ -215,6 +215,8 @@ message Interface {
     Type header = 1;
     // Bounds in this assoc. type.
     optional Bounds bounds = 2;
+    // Documentation for the assoc. type.
+    string documentation = 4;
   }
 
   // Interface header.
@@ -229,7 +231,11 @@ message Interface {
   // Interface documentation.
   string documentation = 4;
 
-  // TODO(impls): handle constants
+  // Attributes in this inteface.
+  repeated Attribute attributes = 5;
+
+  // Bounds on the interface.
+  Bounds bounds = 6;
 }
 
 // An attribute added to some item in the code.

@@ -84,6 +84,8 @@ message Type {
     SELF = 18;
     // Slice type.
     SLICE = 19;
+    // A interface called via dynamic dispatch.
+    DYNAMIC = 20;
   }
 
   oneof name {

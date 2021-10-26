@@ -1,6 +1,7 @@
 const PROTOS: &[&str] = &[
     "../../protos/baker/api/field_behavior.proto",
     "../../protos/baker/api/field_name.proto",
+    "../../protos/baker/api/http.proto",
 ];
 
 fn main() -> std::io::Result<()> {

@@ -46,6 +46,10 @@ message Statement {
     //
     // If not set, the assignment is a normal assignment.
     optional IdentifierPath field = 5;
+
+    // When declaring multiple variables or extracting via irrefutable
+    // pattern matching.
+    Pattern pattern_decl = 6;
   }
 
   // A switch/pattern match statement.
@@ -73,5 +77,7 @@ message Statement {
     Assignment assignment = 2;
     // A switch/pattern matching statement.
     Match switch = 3;
+    // An expression statement, e.g. a method call.
+    Value expression = 4;
   };
 }

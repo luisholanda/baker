@@ -4,7 +4,8 @@ BAKER := target/debug/baker
 
 LAYER_BINS := rust_types \
 							rust_serde \
-							rust_diesel
+							rust_diesel \
+							rust_actix
 LAYER_BINS := $(addprefix target/debug/, $(LAYER_BINS))
 CODEGEN_BINS := $(addprefix target/debug/, $(CODEGENS))
 

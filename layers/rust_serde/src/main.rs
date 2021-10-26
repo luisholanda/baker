@@ -82,7 +82,7 @@ fn generate_message(mut msg: Message) -> io::Result<Vec<TypeDef>> {
         properties.insert(
             field.name,
             Property {
-                attributes: handle_field_attrs(&mut field.options, label)?,
+                attributes: handle_field_attrs(&mut field.options, label, true)?,
                 ..Default::default()
             },
         );
@@ -113,9 +113,16 @@ fn generate_message(mut msg: Message) -> io::Result<Vec<TypeDef>> {
 
 fn handle_field_attrs(
     opts: &mut HashMap<String, baker_pkg_pb::option::Value>,
-    label: Label,
+    _label: Label,
+    add_default: bool,
 ) -> io::Result<Vec<Attribute>> {
-    let mut attrs = vec![];
+    // TODO: integrate with `default` option.
+    let mut attrs = if add_default {
+        vec![serde_default_attr()]
+    } else {
+        vec![]
+    };
+
     if let Some(val) = opts.remove(FIELD_NAME_FIELD_OPTION) {
         let name = translate_opt_value_to_str(val)?;
         attrs.push(serde_rename_attr(&name, None));
@@ -134,11 +141,6 @@ fn handle_field_attrs(
             FieldBehavior::OutputOnly => attrs.push(serde_generic_arg_attr("skip_deserializing")),
             _ => {}
         }
-    }
-
-    // TODO: integrate with `default` option.
-    if label == Label::Optional {
-        attrs.push(serde_default_attr());
     }
 
     Ok(attrs)
@@ -205,7 +207,7 @@ fn generate_oneof(
         members.insert(
             field.name.to_camel_case(),
             Member {
-                attributes: handle_field_attrs(&mut field.options, label)?,
+                attributes: handle_field_attrs(&mut field.options, label, false)?,
                 ..Default::default()
             },
         );

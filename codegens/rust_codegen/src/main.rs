@@ -2,6 +2,7 @@ use std::{collections::HashMap, io};
 
 use baker_codegen_pb::{CodegenRequest, CodegenResponse};
 use baker_ir_pb::{
+    interface::Bounds,
     r#type::{Fundamental, Name},
     type_def::{
         record::Property,
@@ -75,11 +76,18 @@ impl Codegen {
             .into_iter()
             .map(|c| self.codegen_constant(c, true));
 
+        let traits = ns.interfaces.into_iter().map(|i| self.codegen_trait(i));
+
+        let functions = ns.functions.into_iter().map(|f| self.codegen_function(f));
+
         quote! {
             #(#imports)*
             #(#aliases)*
             #(#constants)*
+            #(#traits)*
             #(#types)*
+            #(#functions)*
+
             #(#ns_tokens)*
         }
     }
@@ -110,6 +118,54 @@ impl Codegen {
         } else {
             quote! {}
         }
+    }
+
+    fn codegen_trait(&self, i: baker_ir_pb::Interface) -> TokenStream {
+        let header = self.codegen_type(i.header.unwrap());
+
+        let attributes = self.codegen_attributes(i.attributes);
+
+        let methods = i.methods.into_iter().map(|m| self.codegen_function(m));
+        let assoc_types = i.assoc_types.into_iter().map(|at| {
+            let header = self.codegen_type(at.header.unwrap());
+
+            let bounds_token = if let Some(b) = at.bounds {
+                self.codegen_bounds(b)
+            } else {
+                quote! {}
+            };
+
+            quote! { type #header #bounds_token; }
+        });
+
+        let bounds = if let Some(b) = i.bounds {
+            self.codegen_bounds(b)
+        } else {
+            quote! {}
+        };
+
+        quote! {
+            #attributes
+            pub trait #header #bounds {
+                #(#assoc_types)*
+
+                #(#methods)*
+            }
+        }
+    }
+
+    fn codegen_bounds(&self, b: Bounds) -> TokenStream {
+        let traits = b.interfaces.into_iter().map(|i| self.codegen_type(i));
+
+        let mut tokens = quote! { : #(#traits)+* };
+
+        if !b.lifetimes.is_empty() {
+            let lfs = self.codegen_lifetimes(b.lifetimes);
+
+            tokens = quote! { #tokens + #(#lfs)+* };
+        }
+
+        tokens
     }
 
     fn codegen_typedef(&self, td: TypeDef) -> TokenStream {
@@ -406,6 +462,11 @@ impl Codegen {
                     elem: Box::new(generic),
                 })
             }
+            Fundamental::Dynamic => {
+                let int_trait = self.type_to_syn_type(ty.generics.remove(0));
+
+                syn::Type::Verbatim(quote! { dyn #int_trait })
+            }
         }
     }
 
@@ -467,16 +528,52 @@ impl Codegen {
                             .collect()
                     }
                 } else {
-                    let path_segments = path.segments[..path.segments.len() - 1]
-                        .iter()
-                        .map(|s| self.identifier_path_segment(s, true));
+                    let mut common_segs = 0;
+                    let mut curr_namespace = self.namespace.as_str();
 
-                    let name = path_segments.chain(name_segm);
+                    let use_super = if self.namespace.starts_with(&path.segments[0].name) {
+                        for seg in &path.segments {
+                            if let Some(new_ns) = curr_namespace.strip_prefix(&seg.name) {
+                                curr_namespace = new_ns.trim_start_matches('.');
+                                common_segs += 1;
+                            }
+                        }
 
-                    if is_package {
-                        single_path_segment("crate").chain(name).collect()
+                        true
                     } else {
-                        name.collect()
+                        false
+                    };
+
+                    if use_super {
+                        let supers = self
+                            .namespace
+                            .split('.')
+                            .skip(common_segs)
+                            .flat_map(|_| single_path_segment("super"));
+
+                        let mut module: String = path.segments
+                            [common_segs..path.segments.len() - 1]
+                            .iter()
+                            .map(|s| s.name.clone() + ".")
+                            .collect();
+
+                        module.pop();
+
+                        let name = module_path_segments(&module).chain(name_segm);
+
+                        supers.chain(name).collect()
+                    } else {
+                        let path_segments = path.segments[common_segs..path.segments.len() - 1]
+                            .iter()
+                            .map(|s| self.identifier_path_segment(s, true));
+
+                        let name = path_segments.chain(name_segm);
+
+                        if is_package {
+                            single_path_segment("crate").chain(name).collect()
+                        } else {
+                            name.collect()
+                        }
                     }
                 },
             },
@@ -637,7 +734,11 @@ impl Codegen {
             quote! { #name: #ty }
         });
 
-        let block = self.codegen_block(func.implementation.unwrap());
+        let block = if let Some(block) = func.implementation {
+            self.codegen_block(block)
+        } else {
+            quote! { ; }
+        };
         let attributes = self.codegen_attributes(func.attributes);
 
         let asyncness = if func.asyncness {
@@ -649,11 +750,11 @@ impl Codegen {
         let receiver = if let Some(recv) = func.receiver {
             match recv.fundamental() {
                 Fundamental::ShrdRef => quote! { &self, },
-                Fundamental::UniqRef => quote! { &mut self },
-                Fundamental::Self_ => quote! { self },
+                Fundamental::UniqRef => quote! { &mut self, },
+                Fundamental::Self_ => quote! { self, },
                 _ => {
                     let typ = self.codegen_type(recv);
-                    quote! { self: #typ }
+                    quote! { self: #typ, }
                 }
             }
         } else {
@@ -714,7 +815,12 @@ impl Codegen {
             Some(Statement::Assignment(assign)) => {
                 use baker_ir_pb::statement::assignment::AssignmentType;
                 let assign_type = assign.assignment_type();
-                let name = self.identifier_path_to_path(&assign.ident.unwrap(), true);
+                let name = if let Some(ident) = assign.ident {
+                    let name = self.identifier_path_to_path(&ident, true);
+                    quote! { #name }
+                } else {
+                    self.codegen_pattern(assign.pattern_decl.unwrap())
+                };
 
                 let value = if let Some(val) = assign.value {
                     let val = self.codegen_value(val);
@@ -755,6 +861,11 @@ impl Codegen {
                 });
 
                 quote! { match #value { #(#arms)* } }
+            }
+            Some(Statement::Expression(val)) => {
+                let val = self.codegen_value(val);
+
+                quote! { #val; }
             }
             None => quote! {},
         }

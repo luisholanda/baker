@@ -97,6 +97,16 @@ impl PkgLoader<'_> {
         Ok(())
     }
 
+    pub fn check_undefined_names(&mut self) {
+        if !self.state.undefined_names.is_empty() {
+            for u in self.state.undefined_names.drain(..) {
+                eprintln!("Undefined name '{}' in '{}'", u.typ, u.location);
+            }
+
+            std::process::exit(1);
+        }
+    }
+
     pub fn graph(self) -> PkgGraph<SequentialGenerator> {
         self.state.graph
     }
@@ -256,7 +266,7 @@ impl PkgLoaderState {
                     FieldType::Custom(d) => {
                         let abs_ident = scope.relative_to_absolute(&full_ident_to_string(&d));
                         if let Some(id) = self.types_ids.get(&abs_ident) {
-                            pkg_rpc.request = *id;
+                            pkg_rpc.response = *id;
                         } else {
                             self.undefined_names.push(UndefinedType {
                                 location: rpc.name.to_string(),

@@ -284,6 +284,16 @@ impl Value {
         }
     }
 
+    pub fn unary_operate(self, op: self::value::unary_op::Op) -> Self {
+        Self {
+            value: Some(self::value::Value::UnOp(Box::new(self::value::UnaryOp {
+                value: Some(Box::new(self)),
+                operator: op as i32,
+            }))),
+            ..Default::default()
+        }
+    }
+
     pub fn with_method_call(self, call: FunctionCall) -> Self {
         Self {
             value: Some(self::value::Value::Method(Box::new(
@@ -304,6 +314,13 @@ impl Value {
     pub fn mut_ref(mut self) -> Self {
         self.set_by_ref(self::value::ByRef::MutRef);
         self
+    }
+
+    pub fn await_(self) -> Self {
+        Self {
+            value: Some(self::value::Value::Await(Box::new(self))),
+            ..Default::default()
+        }
     }
 }
 

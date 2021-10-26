@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package baker.api;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.ServiceOptions {
+  // Default encoding used for the HTTP bodies of methods in this service.
+  baker.api.HttpBodyEncoding default_http_body_encoding = 2051;
+}
+
+extend google.protobuf.MethodOptions {
+  // HTTP URI path mapping to this method.
+  //
+  // This string follows the same syntax and rules as that used in `google.api.http`:
+  //
+  //     Template = "/" Segments [ Verb ] ;
+  //     Segments = Segment { "/" Segment } ;
+  //     Segment  = "*" | "**" | LITERAL | Variable ;
+  //     Variable = "{" FieldPath [ "=" Segments ] "}" ;
+  //     FieldPath = IDENT { "." IDENT } ;
+  //     Verb     = ":" LITERAL ;
+  string http_path = 2051;
+
+  // The HTTP method to use for this mapping.
+  //
+  // Controls how the remaining fields not used in `http_path` will be received. In
+  // case this is `GET`, the remaining fields will be received as query parameters,
+  // in the other cases, they'll be received via the body.
+  baker.api.HttpMethod http_method = 2052;
+
+  // Encoding used for the HTTP body.
+  baker.api.HttpBodyEncoding http_body_encoding = 2053;
+}
+
+// Possible HTTP methods.
+enum HttpMethod {
+  UNKNOWN_METHOD = 0;
+  GET = 1;
+  POST = 2;
+  PATCH = 3;
+  PUT = 4;
+}
+
+// Encoding to use when decoding HTTP bodies.
+enum HttpBodyEncoding {
+  UNKNOWN_ENCODING = 0;
+  JSON = 1;
+}
