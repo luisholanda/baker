@@ -199,7 +199,9 @@ fn generate_from_sql(
                 });
 
                 Value::func_call(FunctionCall {
-                    function: Some(IdentifierPath::from_dotted_path("std.result.Result.Err")),
+                    function: Some(
+                        IdentifierPath::from_dotted_path("std.result.Result.Err").global(),
+                    ),
                     args: vec![err],
                     ..Default::default()
                 })
@@ -299,7 +301,7 @@ fn generate_to_sql(
                 })]
             },
             return_value: Some(Value::func_call(FunctionCall {
-                function: Some(IdentifierPath::from_dotted_path("std.result.Result.Ok")),
+                function: Some(IdentifierPath::from_dotted_path("std.result.Result.Ok").global()),
                 args: vec![Value::identifier(
                     IdentifierPath::from_dotted_path("diesel.serialize.IsNull.No").global(),
                 )],

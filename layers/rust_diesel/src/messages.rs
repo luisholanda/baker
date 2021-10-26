@@ -351,7 +351,10 @@ fn generate_insertable_block(
                         assignment_type: AssignmentType::DefMutable as i32,
                         r#type: Some(qualifier_alias),
                         value: Some(Value::func_call(FunctionCall {
-                            function: Some(IdentifierPath::from_dotted_path("Default.default")),
+                            function: Some(
+                                IdentifierPath::from_dotted_path("std.default.Default.default")
+                                    .global(),
+                            ),
                             ..Default::default()
                         })),
                         ..Default::default()
@@ -487,9 +490,9 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
             block: Some(Block {
                 statements: vec![],
                 return_value: Some(Value::func_call(FunctionCall {
-                    function: Some(IdentifierPath::from_dotted_path(
-                        "std.default.Default.default",
-                    )),
+                    function: Some(
+                        IdentifierPath::from_dotted_path("std.default.Default.default").global(),
+                    ),
                     ..Default::default()
                 })),
             }),
