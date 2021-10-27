@@ -18,7 +18,10 @@ EXAMPLE_PROTO := examples/blog/api/v1/api.proto
 RUST_CODEGEN := target/debug/rust_codegen
 
 example: $(BAKER) $(LAYER_BINS) $(CODEGEN_BINS)
-	$(BAKER) $(EXAMPLE_PROTO) --layers $(LAYER_BINS) --codegen=$(RUST_CODEGEN)
+	$(BAKER) $(EXAMPLE_PROTO) \
+		--layers $(LAYER_BINS) \
+		--codegen=$(RUST_CODEGEN) \
+		--output-folder=out
 
 $(BAKER): $(BAKER_SRCS) $(PROTO_SRCS)
 	cargo build --bin baker

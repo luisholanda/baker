@@ -23,6 +23,11 @@ fn main() -> std::io::Result<()> {
             .long("codegen")
             .help("Codegen executable to use to generate the desired concrete language")
             .required(true)
+            .min_values(1),
+            Arg::with_name("output-folder")
+            .long("output-folder")
+            .help("Folder to where files will be saved")
+            .required(true)
             .min_values(1)
             .max_values(1),
             Arg::with_name("inputs")
@@ -36,7 +41,8 @@ fn main() -> std::io::Result<()> {
 
     let inputs = matches.values_of_lossy("inputs").unwrap_or_default();
     let layers = matches.values_of_lossy("layers").unwrap_or_default();
-    let codegen = matches.value_of_lossy("codegen").unwrap_or_default();
+    let codegens = matches.values_of_lossy("codegen").unwrap_or_default();
+    let output_folder = matches.value_of_lossy("output-folder").unwrap_or_default();
 
     let mut loader = PkgLoader::new();
     let inputs: HashSet<_> = inputs.into_iter().map(PathBuf::from).collect();
@@ -69,16 +75,16 @@ fn main() -> std::io::Result<()> {
     }
 
     let files = merger.into_files();
-    {
-        let req = CodegenRequest {
-            packages: request.packages,
-            ir_files: files,
-            output_folder: std::env::current_dir()?.display().to_string(),
-        };
-
-        let codegen = Codegen::new(&codegen).unwrap();
-        codegen.execute(&req)?
+    let req = CodegenRequest {
+        packages: request.packages,
+        ir_files: files,
+        output_folder: output_folder.into_owned(),
     };
+
+    for codegen in codegens {
+        let codegen = Codegen::new(&codegen).unwrap();
+        codegen.execute(&req)?;
+    }
 
     Ok(())
 }

@@ -38,4 +38,6 @@ tags
 # Persistent undo
 [._]*.un~
 
+out
+
 # End of https://www.toptal.com/developers/gitignore/api/rust,vim

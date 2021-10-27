@@ -12,6 +12,7 @@ use baker_ir_pb::{
     Attribute, Block, Constant, Function, IdentifierPath, Import, Namespace, Pattern, Statement,
     Type, TypeAlias, TypeDef, Visibility,
 };
+use baker_pkg_pb::Package;
 use heck::SnakeCase;
 use proc_macro2::{Span, TokenStream};
 use quote::*;
@@ -24,17 +25,51 @@ fn codegen_impl(req: CodegenRequest) -> io::Result<CodegenResponse> {
         .flat_map(|(_, pkg)| pkg.files.iter().map(move |f| (f, pkg)))
         .collect();
 
+    let mut pkg_to_token_stream =
+        HashMap::<_, TokenStream>::with_capacity(pkg_graph.packages.len());
+
     for file in req.ir_files {
         let pkg = file_to_pkg[&file.file_id];
 
         if let Some(root_ns) = file.root {
             let codegen = Codegen::new(pkg.name.clone());
             let stream = codegen.codegen_namespace(root_ns);
-            eprintln!("{}", stream);
+            pkg_to_token_stream
+                .entry(pkg.id)
+                .or_default()
+                .extend(stream);
         }
     }
 
+    for (pkg, stream) in pkg_to_token_stream {
+        let pkg = &pkg_graph.packages[&pkg];
+        write_pkg_file(pkg, stream, &req.output_folder)?;
+    }
+
     Ok(Default::default())
+}
+
+fn write_pkg_file(pkg: &Package, stream: TokenStream, output_folder: &str) -> io::Result<()> {
+    use std::io::Write;
+    let path = std::path::Path::new(output_folder);
+    let file_path = path.join(&format!("{}.rs", pkg.name));
+
+    std::fs::create_dir_all(file_path.parent().unwrap())?;
+
+    let mut file = std::fs::File::create(file_path.clone())?;
+    write!(&mut file, "{}", stream)?;
+
+    let status = std::process::Command::new("cargo")
+        .arg("fmt")
+        .arg("--")
+        .arg("--config")
+        .arg("normalize_doc_attributes=true")
+        .arg(file_path)
+        .status()?;
+
+    dbg!(status);
+
+    Ok(())
 }
 
 struct Codegen {
