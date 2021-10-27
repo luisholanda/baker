@@ -327,7 +327,12 @@ impl Codegen {
         match attr.value {
             Some(Value::Call(call)) => {
                 let attribute = self.identifier_path_to_path(&call.function.unwrap(), true);
+
+                let separator = (!call.args.is_empty() && !call.kwargs.is_empty())
+                    .then(syn::token::Comma::default);
+
                 let args = call.args.into_iter().map(|a| self.codegen_value(a));
+
                 let kwargs = call
                     .kwargs
                     .into_iter()
@@ -335,7 +340,7 @@ impl Codegen {
                     .map(|(k, v)| quote! { #k = #v });
 
                 quote! {
-                    #[#attribute(#(#args,)* #(#kwargs),*)]
+                    #[#attribute(#(#args),* #separator #(#kwargs),*)]
                 }
             }
             Some(Value::Assignment(assign)) => {
@@ -1013,6 +1018,7 @@ impl Codegen {
 
                 quote! { #lit }
             }
+            Some(Value::Raw(raw)) => syn::parse_str(&raw).expect("invalid value in raw value"),
             None => quote! {},
         };
 

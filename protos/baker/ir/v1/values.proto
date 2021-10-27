@@ -99,6 +99,10 @@ message Value {
     UnaryOp un_op = 11;
     // A binary value.
     bytes bytes_value = 12;
+    // Workaround when the value you want to express can't be expressed
+    // in the values IR. Normally used in macros or languages with not
+    // supported operators.
+    string raw = 13;
   };
 
   ByRef by_ref = 20;

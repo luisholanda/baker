@@ -101,9 +101,16 @@ fn generate_service_trait(
         methods: methods.chain(std::iter::once(configure)).collect(),
         documentation: std::mem::take(&mut service.documentation).unwrap_or_default(),
         attributes: vec![Attribute {
-            value: Some(baker_ir_pb::attribute::Value::Identifier(
-                IdentifierPath::from_dotted_path("async_trait.async_trait").global(),
-            )),
+            value: Some(baker_ir_pb::attribute::Value::Call(FunctionCall {
+                function: Some(
+                    IdentifierPath::from_dotted_path("async_trait.async_trait").global(),
+                ),
+                args: vec![Value {
+                    value: Some(baker_ir_pb::value::Value::Raw("?Send".to_string())),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })),
         }],
         bounds: Some(Bounds {
             interfaces: vec![
