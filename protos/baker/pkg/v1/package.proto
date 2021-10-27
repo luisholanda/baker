@@ -287,6 +287,12 @@ message Type {
     STRING = 8;
     // Bytes.
     BYTES = 9;
+    // Timestamp.
+    TIMESTAMP = 10;
+    // Duration
+    DURATION = 11;
+    // Unit type
+    UNIT = 12;
   }
 
   // Value of the type.

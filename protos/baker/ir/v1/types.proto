@@ -86,6 +86,8 @@ message Type {
     SLICE = 19;
     // A interface called via dynamic dispatch.
     DYNAMIC = 20;
+    // Unit type.
+    UNIT = 21;
   }
 
   oneof name {

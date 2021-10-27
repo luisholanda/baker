@@ -356,49 +356,80 @@ impl PkgLoaderState {
 
         field.r#type = Some(Type {
             value: Some(if let FieldType::Custom(ident) = parsed_field.type_ {
-                let name = full_ident_to_string(&ident);
-                let abs_name = scope.relative_to_absolute(&name);
-
-                // First search in the current scope, then in the global scope, if we didn't
-                // found, search in parents.
-                let typ_id = if let Some(id) = self.types_ids.get(&abs_name) {
-                    *id
-                } else if let Some(id) = self.types_ids.get(&abs_name) {
-                    *id
+                if let Some(b) = self.check_for_builtin_wkt(&ident) {
+                    typ::Value::Bultin(b as i32)
                 } else {
-                    let mut curr_scope = scope.clone();
-                    let mut id = None;
+                    let typ_id = self.search_ident_type(scope, ident, &field.name)?;
 
-                    while !curr_scope.is_root() && id.is_none() {
-                        curr_scope.pop_scope();
-                        let name = curr_scope.relative_to_absolute(&name);
-
-                        id = self.types_ids.get(&name).copied();
+                    if self.graph.message(typ_id).is_some() {
+                        self.graph
+                            .add_msg_usage_ref(msg_id, typ_id, field.name.clone());
                     }
 
-                    if let Some(id) = id {
-                        id
-                    } else {
-                        self.undefined_names.push(UndefinedType {
-                            location: scope.relative_to_absolute(&field.name),
-                            typ: name,
-                        });
-                        return None;
-                    }
-                };
-
-                if self.graph.message(typ_id).is_some() {
-                    self.graph
-                        .add_msg_usage_ref(msg_id, typ_id, field.name.clone());
+                    typ::Value::Custom(typ_id)
                 }
-
-                typ::Value::Custom(typ_id)
             } else {
                 typ::Value::Bultin(translate_builtin_type(parsed_field.type_).into())
             }),
         });
 
         Some(field)
+    }
+
+    fn search_ident_type(&mut self, scope: &Scope, ident: FullIdent<'_>, loc: &str) -> Option<u32> {
+        let name = full_ident_to_string(&ident);
+        let abs_name = scope.relative_to_absolute(&name);
+
+        // First search in the current scope, then in the global scope, if we didn't
+        // found, search in parents.
+        let typ_id = if let Some(id) = self.types_ids.get(&abs_name) {
+            *id
+        } else if let Some(id) = self.types_ids.get(&abs_name) {
+            *id
+        } else {
+            let mut curr_scope = scope.clone();
+            let mut id = None;
+
+            while !curr_scope.is_root() && id.is_none() {
+                curr_scope.pop_scope();
+                let name = curr_scope.relative_to_absolute(&name);
+
+                id = self.types_ids.get(&name).copied();
+            }
+
+            if let Some(id) = id {
+                id
+            } else {
+                self.undefined_names.push(UndefinedType {
+                    location: scope.relative_to_absolute(loc),
+                    typ: name,
+                });
+                return None;
+            }
+        };
+
+        Some(typ_id)
+    }
+
+    fn check_for_builtin_wkt(&self, ident: &FullIdent<'_>) -> Option<typ::BuiltIn> {
+        match &ident[..] {
+            &["google", "protobuf", _] => match ident[2] {
+                "BoolValue" => Some(typ::BuiltIn::Bool),
+                "BytesValue" => Some(typ::BuiltIn::Bool),
+                "DoubleValue" => Some(typ::BuiltIn::Double),
+                "Duration" => Some(typ::BuiltIn::Duration),
+                "Empty" => Some(typ::BuiltIn::Unit),
+                "FloatValue" => Some(typ::BuiltIn::Float),
+                "Int32Value" => Some(typ::BuiltIn::SInt),
+                "Int64Value" => Some(typ::BuiltIn::SLong),
+                "StringValue" => Some(typ::BuiltIn::String),
+                "Timestamp" => Some(typ::BuiltIn::Timestamp),
+                "UInt32Value" => Some(typ::BuiltIn::UInt),
+                "UInt64Value" => Some(typ::BuiltIn::ULong),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 }
 

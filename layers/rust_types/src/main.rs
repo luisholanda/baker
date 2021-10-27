@@ -359,6 +359,13 @@ fn translate_type(pkg_typ: baker_pkg_pb::Type, graph: &PackageGraph) -> Type {
     let typ;
 
     match pkg_typ.value.unwrap() {
+        Value::Bultin(b) if b == BuiltIn::Duration as i32 => {
+            typ = Type::with_global_name("std.time.Duration");
+        }
+        Value::Bultin(b) if b == BuiltIn::Timestamp as i32 => {
+            typ = Type::with_global_name("chrono.DateTime")
+                .set_generic(Type::with_global_name("chrono.Utc"));
+        }
         Value::Bultin(b) => {
             typ = Type::with_fundamental(match BuiltIn::from_i32(b).unwrap() {
                 BuiltIn::Unknown => Fundamental::Unknown,
@@ -371,6 +378,8 @@ fn translate_type(pkg_typ: baker_pkg_pb::Type, graph: &PackageGraph) -> Type {
                 BuiltIn::Bool => Fundamental::Bool,
                 BuiltIn::String => Fundamental::String,
                 BuiltIn::Bytes => Fundamental::Bytes,
+                BuiltIn::Unit => Fundamental::Unit,
+                _ => unreachable!("found not expected types"),
             });
         }
         Value::Custom(id) => {

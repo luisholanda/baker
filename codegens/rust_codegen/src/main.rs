@@ -515,6 +515,10 @@ impl Codegen {
 
                 syn::Type::Verbatim(quote! { dyn #int_trait })
             }
+            Fundamental::Unit => syn::Type::Tuple(syn::TypeTuple {
+                paren_token: syn::token::Paren::default(),
+                elems: Default::default(),
+            }),
         }
     }
 

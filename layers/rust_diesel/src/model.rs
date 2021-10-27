@@ -65,6 +65,12 @@ impl MsgModel {
                             BuiltIn::Bool => Type::with_fundamental(Fundamental::Bool),
                             BuiltIn::String => Type::with_fundamental(Fundamental::String),
                             BuiltIn::Bytes => Type::with_fundamental(Fundamental::Bytes),
+                            BuiltIn::Duration => {
+                                panic!("diesel doesn't support Duration values directly")
+                            }
+                            BuiltIn::Timestamp => Type::with_global_name("chrono.DateTime")
+                                .set_generic(Type::with_global_name("chrono.Utc")),
+                            BuiltIn::Unit => panic!("diesel doesn't support empty values"),
                         };
 
                         field_types.insert(f.name.clone(), typ);
