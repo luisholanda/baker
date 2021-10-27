@@ -236,18 +236,28 @@ impl Codegen {
 
         match def {
             Definition::Record(rec) => {
-                let properties = rec
+                let mut properties: Vec<_> = rec
                     .properties
                     .into_iter()
-                    .map(|(k, v)| self.codegen_property(k, v));
+                    .map(|(k, v)| (v.number, self.codegen_property(k, v)))
+                    .collect();
+
+                properties.sort_unstable_by_key(|p| p.0);
+
+                let properties = properties.into_iter().map(|(_, p)| p);
 
                 quote! { struct #header_tokens { #(#properties)* } }
             }
             Definition::Sum(sum) => {
-                let members = sum
+                let mut members: Vec<_> = sum
                     .members
                     .into_iter()
-                    .map(|(n, m)| self.codegen_member(n, m));
+                    .map(|(n, m)| (m.number, self.codegen_member(n, m)))
+                    .collect();
+
+                members.sort_unstable_by_key(|p| p.0);
+
+                let members = members.into_iter().map(|(_, p)| p);
 
                 quote! { enum #header_tokens { #(#members)* } }
             }

@@ -90,6 +90,7 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
                 } else {
                     default_visibility
                 } as i32,
+                number: field.number as i32,
                 ..Default::default()
             },
         );
@@ -119,6 +120,12 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
                 } else {
                     default_visibility
                 } as i32,
+                number: oneof
+                    .fields
+                    .iter()
+                    .map(|f| f.number as i32)
+                    .min()
+                    .unwrap_or_default(),
                 ..Default::default()
             },
         );
@@ -152,6 +159,7 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
                 documentation: val.documentation.unwrap_or_default(),
                 value: Some(baker_ir_pb::type_def::sum::member::Value::Fixed(val.value)),
                 attributes: vec![],
+                number: val.value,
             },
         );
     }
@@ -245,6 +253,7 @@ fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> Ty
                 value: Some(baker_ir_pb::type_def::sum::member::Value::Type(
                     translate_field_type(f, graph),
                 )),
+                number: f.number as i32,
             },
         );
     }
@@ -255,6 +264,7 @@ fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> Ty
             attributes: vec![],
             documentation: r"Default value for the OneOf. Used when no field is set.".to_string(),
             value: None,
+            number: oneof.fields.len() as i32,
         },
     );
 

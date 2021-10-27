@@ -28,6 +28,9 @@ message TypeDef {
 
       // Documentation of this property.
       string documentation = 4;
+
+      // Number of the member in the original protobuffer file.
+      int32 number = 5;
     }
 
     // All properties in the record.
@@ -53,6 +56,9 @@ message TypeDef {
 
       // Documentation of this member.
       string documentation = 6;
+
+      // Number of the member in the original protobuffer file.
+      int32 number = 7;
     }
 
     // Members of the sum type.

@@ -186,15 +186,15 @@ message Post {
   // Likes of the post.
   int32 likes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Dislikes of the post.
-  int32 dislikes = 3 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
+  int32 dislikes = 4 [ (baker.api.field_behavior) = OUTPUT_ONLY ];
   // Author of the post.
-  int64 author_id = 4 [
+  int64 author_id = 5 [
     (baker.api.field_behavior) = IMMUTABLE,
     (baker.orm.relationship) = PARENT_ID,
     (baker.orm.related_type) = "blog.api.v1.User"
   ];
   // Content of the post.
-  string content = 5;
+  string content = 6;
   // Format used in `content`.
-  ContentFormat content_format = 6;
+  ContentFormat content_format = 7;
 }
