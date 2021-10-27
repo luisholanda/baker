@@ -14,14 +14,14 @@ BAKER_SRCS := $(shell find crates -type f)
 LAYER_SRCS := $(shell find layers -type f)
 CODEGEN_SRCS := $(shell find codegens -type f)
 
-EXAMPLE_PROTO := examples/blog/api/v1/api.proto
+EXAMPLE_PROTO := examples/blog/api.proto
 RUST_CODEGEN := target/debug/rust_codegen
 
-example: $(BAKER) $(LAYER_BINS) $(CODEGEN_BINS)
+examples/blog/src/blog.api.v1.rs: $(EXAMPLE_PROTO) $(BAKER) $(LAYER_BINS) $(CODEGEN_BINS)
 	$(BAKER) $(EXAMPLE_PROTO) \
 		--layers $(LAYER_BINS) \
 		--codegen=$(RUST_CODEGEN) \
-		--output-folder=out
+		--output-folder=examples/blog/src/model
 
 $(BAKER): $(BAKER_SRCS) $(PROTO_SRCS)
 	cargo build --bin baker

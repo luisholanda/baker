@@ -74,6 +74,8 @@ message ListPostCommentsRequest {
 
   // Returns comments after a given ID.
   optional int64 after = 2;
+  // Limit the number of returned posts.
+  optional uint32 limit = 2;
 }
 
 // Response for `ListPostComments` RPC method.

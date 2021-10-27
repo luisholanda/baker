@@ -28,6 +28,7 @@ in pkgs.mkShell {
     pkgs.gnumake
     pkgs.openssl.dev
     pkgs.protobuf
+    pkgs.postgresql.lib
   ];
 
   shellHook = lib.concatStrings (lib.attrValues shellHooks);

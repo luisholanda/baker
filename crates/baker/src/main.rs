@@ -53,7 +53,7 @@ fn main() -> std::io::Result<()> {
 
     loader.load().expect("failed to load package graph");
     loader.check_undefined_names();
-    let graph = dbg!(loader.graph());
+    let graph = loader.graph();
 
     let request = LayerRequest {
         packages: Some(graph.into_pb()),

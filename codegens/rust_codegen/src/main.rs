@@ -59,15 +59,13 @@ fn write_pkg_file(pkg: &Package, stream: TokenStream, output_folder: &str) -> io
     let mut file = std::fs::File::create(file_path.clone())?;
     write!(&mut file, "{}", stream)?;
 
-    let status = std::process::Command::new("cargo")
+    std::process::Command::new("cargo")
         .arg("fmt")
         .arg("--")
         .arg("--config")
         .arg("normalize_doc_attributes=true")
         .arg(file_path)
         .status()?;
-
-    dbg!(status);
 
     Ok(())
 }
