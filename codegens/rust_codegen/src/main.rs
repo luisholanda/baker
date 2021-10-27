@@ -377,6 +377,7 @@ impl Codegen {
 
     fn codegen_doc_attributes(&self, doc: &str) -> TokenStream {
         let attributes = doc.lines().map(|doc| {
+            let doc = format!(" {}", doc);
             quote! { #[doc = #doc] }
         });
 

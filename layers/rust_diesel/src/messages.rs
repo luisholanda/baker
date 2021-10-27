@@ -13,17 +13,19 @@ use baker_pkg_pb::{
     message::{Field, OneOf},
     Message,
 };
-use heck::CamelCase;
+use heck::{CamelCase, SnakeCase};
 
 use crate::model::MsgModel;
 
 pub(crate) fn handle_schema_opts(
     msg_def: &mut TypeDef,
     msg: &mut Message,
-    model: &MsgModel,
+    model: &mut MsgModel,
 ) -> io::Result<()> {
     let mut assoc_ns = Namespace::default();
     handle_table_attributes(msg_def, model, msg, &mut assoc_ns)?;
+
+    crate::helpers::generate_message_helpers(msg_def, msg, model, &mut assoc_ns);
 
     let mut properties = HashMap::with_capacity(msg.fields.len());
     for f in msg.fields.drain(..) {
@@ -65,7 +67,7 @@ pub(crate) fn handle_schema_opts(
 
 fn handle_table_attributes(
     msg_def: &mut TypeDef,
-    model: &MsgModel,
+    model: &mut MsgModel,
     msg: &Message,
     ns: &mut Namespace,
 ) -> io::Result<()> {
@@ -73,12 +75,14 @@ fn handle_table_attributes(
         model.table_name.clone()
     } else {
         // Ensure the schema is in scope so that diesel's derives can find it.
-        let name = format!("__table_{}", model.table_name);
+        let name = format!("{}_schema", msg.basename().to_snake_case());
         ns.imports.push(Import {
             module: Some(IdentifierPath::from_dotted_path(&model.table_path)),
             alias: Some(name.clone()),
             ..Default::default()
         });
+
+        model.table_path = format!("{}.{}", msg.scope(), name);
 
         name
     };
@@ -105,19 +109,29 @@ fn handle_table_attributes(
             .attributes
             .push(crate::derive_call(&["diesel.Associations"], true));
 
+        let mut methods = Vec::with_capacity(model.field_parents.len());
+
         for (field, parent) in &model.field_parents {
+            let parent = IdentifierPath::from_dotted_path(parent);
             let mut karwgs = HashMap::default();
             karwgs.insert("foreign_key".to_string(), Value::string(field.to_string()));
-            karwgs.insert(
-                "parent".to_string(),
-                Value::identifier(IdentifierPath::from_dotted_path(parent)),
-            );
+            karwgs.insert("parent".to_string(), Value::identifier(parent.clone()));
             msg_def.attributes.push(crate::function_call_attr(
                 "belongs_to".to_string(),
                 vec![],
                 karwgs,
             ));
+
+            let field_ty = model.field_types[field].clone();
+            methods.push(crate::helpers::generate_all_of_helper(
+                msg, model, parent, field, field_ty,
+            ));
         }
+
+        msg_def.blocks.push(ImplBlock {
+            methods,
+            ..Default::default()
+        });
     }
 
     // TODO: Handle updates when the message has a changeset.
@@ -552,16 +566,12 @@ fn fields_to_type(
 }
 
 fn fields_to_options_tuple(field_tps: Vec<Type>) -> Type {
-    Type {
-        generics: field_tps
+    Type::with_fundamental(Fundamental::Tuple).set_generics(
+        field_tps
             .into_iter()
-            .map(|tp| Type {
-                generics: vec![tp],
-                ..Type::with_fundamental(Fundamental::Optional)
-            })
+            .map(|tp| Type::with_fundamental(Fundamental::Optional).set_generic(tp))
             .collect(),
-        ..Type::with_fundamental(Fundamental::Tuple)
-    }
+    )
 }
 
 fn n_none_values(elems: usize) -> Vec<Value> {

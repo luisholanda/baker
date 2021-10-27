@@ -19,7 +19,7 @@ impl BlobServiceImpl {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl BlobService for BlobServiceImpl {
     async fn list_users(
         &self,

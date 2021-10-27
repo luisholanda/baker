@@ -42,45 +42,34 @@ pub trait BlogRepository {
 impl BlogRepository for PgConnection {
     fn list_users(&self, page_params: PaginationParams) -> Result<Vec<User>> {
         let users = match (page_params.after, page_params.limit) {
-            (Some(a), 0) => users::table
-                .filter(users::user_id.gt(a))
-                .select(User::columns())
-                .get_results(self),
-            (Some(a), l) => users::table
+            (Some(a), 0) => User::all().filter(users::user_id.gt(a)).get_results(self),
+            (Some(a), l) => User::all()
                 .filter(users::user_id.gt(a))
                 .limit(l as i64)
-                .select(User::columns())
                 .get_results(self),
-            (None, 0) => users::table.select(User::columns()).get_results(self),
-            (None, l) => users::table
-                .limit(l as i64)
-                .select(User::columns())
-                .get_results(self),
+            (None, 0) => User::all().get_results(self),
+            (None, l) => User::all().limit(l as i64).get_results(self),
         };
 
         users.map_err(|e| Error::new(e.into(), StatusCode::INTERNAL_SERVER_ERROR))
     }
 
     fn list_posts(&self, page_params: PaginationParams) -> Result<Vec<Post>> {
-        let base_query = posts::table.select(Post::columns());
-
         let posts = match (page_params.after, page_params.limit) {
-            (Some(a), 0) => base_query.filter(posts::post_id.gt(a)).get_results(self),
-            (Some(a), l) => base_query
+            (Some(a), 0) => Post::all().filter(posts::post_id.gt(a)).get_results(self),
+            (Some(a), l) => Post::all()
                 .filter(posts::post_id.gt(a))
                 .limit(l as i64)
                 .get_results(self),
-            (None, 0) => base_query.get_results(self),
-            (None, l) => base_query.limit(l as i64).get_results(self),
+            (None, 0) => Post::all().get_results(self),
+            (None, l) => Post::all().limit(l as i64).get_results(self),
         };
 
         posts.map_err(|e| Error::new(e.into(), StatusCode::INTERNAL_SERVER_ERROR))
     }
 
     fn list_post_comments(&self, post: i64, page_params: PaginationParams) -> Result<Vec<Comment>> {
-        let base_query = comments::table
-            .select(Comment::columns())
-            .filter(comments::post_id.eq(post));
+        let base_query = Comment::all_of_post(post);
 
         let comments = match (page_params.after, page_params.limit) {
             (Some(a), 0) => base_query
@@ -97,8 +86,20 @@ impl BlogRepository for PgConnection {
         comments.map_err(|e| Error::new(e.into(), StatusCode::INTERNAL_SERVER_ERROR))
     }
 
-    fn create_user(&self, user: User) -> Result<User> {
-        todo!()
+    fn create_user(&self, mut user: User) -> Result<User> {
+        use diesel::pg::upsert::excluded;
+
+        user.id = diesel::insert_into(users::table)
+            .values((users::name.eq(&user.name), &user.identifier))
+            .returning(users::user_id)
+            // username/email can't be repeated.
+            .on_conflict((users::username, users::email))
+            .do_update()
+            .set(users::username.eq(excluded(users::username)))
+            .get_result(self)
+            .map_err(|e| Error::new(e.into(), StatusCode::INTERNAL_SERVER_ERROR))?;
+
+        Ok(user)
     }
 
     fn create_post(&self, mut post: Post) -> Result<Post> {

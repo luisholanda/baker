@@ -174,6 +174,10 @@ impl Type {
         }
     }
 
+    pub fn tuple(elems: Vec<Type>) -> Self {
+        Self::with_fundamental(self::r#type::Fundamental::Tuple).set_generics(elems)
+    }
+
     pub fn fundamental(&self) -> self::r#type::Fundamental {
         use self::r#type::Name;
 

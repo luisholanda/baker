@@ -85,7 +85,6 @@ impl MsgModel {
                             .unwrap();
 
                         field_types.insert(f.name.clone(), typ);
-                        continue;
                     }
                     None => continue,
                 }

@@ -11,6 +11,7 @@ use baker_pkg_pb::{Enum, File, Message, PackageGraph};
 use crate::model::{EnumModel, MsgModel};
 
 mod enums;
+mod helpers;
 mod messages;
 mod model;
 
@@ -74,8 +75,8 @@ fn generate_message(mut msg: Message, pkg: &PackageGraph, ns: &mut Namespace) ->
         ..Default::default()
     };
 
-    if let Some(model) = MsgModel::from_msg(&mut msg, pkg)? {
-        self::messages::handle_schema_opts(&mut msg_def, &mut msg, &model)?;
+    if let Some(mut model) = MsgModel::from_msg(&mut msg, pkg)? {
+        self::messages::handle_schema_opts(&mut msg_def, &mut msg, &mut model)?;
 
         ns.types.push(msg_def);
     }
