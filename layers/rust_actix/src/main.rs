@@ -6,6 +6,7 @@ use baker_ir_pb::{
     interface::Bounds,
     r#type::Fundamental,
     statement::{assignment::AssignmentType, Assignment},
+    type_def::Constraint,
     Attribute, Block, Function, FunctionCall, IdentifierPath, Import, Interface, IrFile, Namespace,
     Pattern, Statement, Type, Value,
 };
@@ -144,7 +145,14 @@ fn generate_service_trait_configure_method(
         IdentifierPath::from_dotted_path(path)
     }
 
+    let service_ident = IdentifierPath::from_dotted_path("service");
     let mut cfg_val = Value::identifier(IdentifierPath::from_dotted_path("cfg"));
+
+    cfg_val = cfg_val.with_method_call(FunctionCall {
+        function: Some(IdentifierPath::from_dotted_path("app_data")),
+        args: vec![Value::identifier(service_ident.clone())],
+        ..Default::default()
+    });
 
     for model in models {
         let handler_name = format!("{}.{}", service.name, model.handler_name);
@@ -167,6 +175,34 @@ fn generate_service_trait_configure_method(
         });
     }
 
+    let decl_arc_service = Statement::assignment(Assignment {
+        ident: Some(service_ident.clone()),
+        value: Some(Value::identifier(IdentifierPath::self_())),
+        r#type: Some(
+            Type::with_name(&service.name)
+                .as_generic_of(Type::with_fundamental(Fundamental::Dynamic))
+                .as_generic_of(Type::with_global_name("std.sync.Arc")),
+        ),
+        assignment_type: AssignmentType::DefConstant as i32,
+        ..Default::default()
+    });
+    let decl_service = Statement::assignment(Assignment {
+        ident: Some(service_ident.clone()),
+        value: Some(
+            Value::identifier(service_ident).with_method_call(FunctionCall {
+                function: Some(IdentifierPath::from_dotted_path("into")),
+                ..Default::default()
+            }),
+        ),
+        r#type: Some(
+            Type::with_name(&service.name)
+                .as_generic_of(Type::with_fundamental(Fundamental::Dynamic))
+                .as_generic_of(Type::with_global_name("actix_web.web.Data")),
+        ),
+        assignment_type: AssignmentType::DefConstant as i32,
+        ..Default::default()
+    });
+
     Function {
         header: Some(Type::with_name("configure")),
         receiver: Some(Type::with_global_name("std.sync.Arc").set_generic(Type::SELF)),
@@ -179,11 +215,20 @@ fn generate_service_trait_configure_method(
             ..Default::default()
         }],
         implementation: Some(Block {
-            statements: vec![Statement {
-                statement: Some(baker_ir_pb::statement::Statement::Expression(cfg_val)),
-            }],
+            statements: vec![
+                decl_arc_service,
+                decl_service,
+                Statement {
+                    statement: Some(baker_ir_pb::statement::Statement::Expression(cfg_val)),
+                },
+            ],
             ..Default::default()
         }),
+        constraints: vec![Constraint {
+            constrained: Some(Type::SELF),
+            interfaces: vec![Type::with_global_name("std.marker.Sized")],
+            ..Default::default()
+        }],
         ..Default::default()
     }
 }
