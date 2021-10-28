@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io};
 
 use baker_ir_pb::{
+    identifier_path::Segment,
     r#type::{Fundamental, Name},
     type_def::{record::Property, sum::Member, Definition, ImplBlock, Record, Sum},
     Attribute, Block, Function, FunctionCall, IdentifierPath, IrFile, Namespace, Type, TypeDef,
@@ -46,7 +47,7 @@ fn generate_file(file: File, graph: &mut PackageGraph) -> io::Result<IrFile> {
 
     for msg in file.root_messages {
         let mut msg = graph.messages.remove(&msg).expect("message not found");
-        let namespace_name = msg.name.rsplit_once('.').unwrap().1.to_string();
+        let namespace_name = msg.basename().to_string();
         let nested = generate_msg_namespace(&msg, graph)?;
 
         if nested != Namespace::default() {
@@ -105,10 +106,7 @@ fn generate_message_type(msg: &mut Message, graph: &PackageGraph) -> io::Result<
                         let mut identifier = IdentifierPath::from_dotted_path(&msg.name);
                         identifier
                             .segments
-                            .push(baker_ir_pb::identifier_path::Segment {
-                                name: oneof.name.to_camel_case(),
-                                ..Default::default()
-                            });
+                            .push(Segment::with_name(oneof.name.to_camel_case()));
 
                         Box::new(identifier)
                     })),
@@ -168,9 +166,9 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
 
     if !default_member.is_empty() {
         let default_impl = ImplBlock {
-            interface: Some(Type::with_path(
-                IdentifierPath::from_dotted_path("std.default.Default").global(),
-            )),
+            interface: Some(Type::with_path(IdentifierPath::global_path(
+                "std.default.Default",
+            ))),
             methods: vec![Function {
                 header: Some(Type::with_name("default")),
                 implementation: Some(Block {
@@ -179,7 +177,7 @@ fn generate_enum_type(enum_: Enum) -> TypeDef {
                         &default_member,
                     ))),
                 }),
-                r#return: Some(Type::with_fundamental(Fundamental::Self_)),
+                r#return: Some(Type::SELF),
                 ..Default::default()
             }],
             ..Default::default()
@@ -215,7 +213,7 @@ fn generate_msg_namespace(msg: &Message, graph: &mut PackageGraph) -> io::Result
         let mut msg = graph.messages.remove(n_msg_id).expect("message not found");
         let nested = generate_msg_namespace(&msg, graph)?;
 
-        let namespace_name = msg.name.rsplit_once('.').unwrap().1.to_string();
+        let namespace_name = msg.basename().to_string();
         if nested != Namespace::default() {
             namespace.nested_namespaces.insert(namespace_name, nested);
         }
@@ -271,12 +269,12 @@ fn generate_oneof_type(oneof: &OneOf, msg: &Message, graph: &PackageGraph) -> Ty
     let not_set = Value::identifier(IdentifierPath::from_dotted_path("Self.NotSet"));
 
     let default_impl = ImplBlock {
-        interface: Some(Type::with_path(
-            IdentifierPath::from_dotted_path("std.default.Default").global(),
-        )),
+        interface: Some(Type::with_path(IdentifierPath::global_path(
+            "std.default.Default",
+        ))),
         methods: vec![Function {
             header: Some(Type::with_name("default")),
-            r#return: Some(Type::with_fundamental(Fundamental::Self_)),
+            r#return: Some(Type::SELF),
             implementation: Some(Block {
                 statements: vec![],
                 return_value: Some(not_set.clone()),
@@ -326,29 +324,22 @@ fn translate_field_type(field: &Field, graph: &PackageGraph) -> Type {
         .unwrap();
 
     if let Some(key_type) = field.key_type {
-        Type {
-            generics: vec![
-                translate_type(
-                    baker_pkg_pb::Type {
-                        value: Some(baker_pkg_pb::r#type::Value::Bultin(key_type)),
-                    },
-                    graph,
-                ),
-                value_type,
-            ],
-            ..Type::with_fundamental(Fundamental::Map)
-        }
+        Type::with_fundamental(Fundamental::Map).set_generics(vec![
+            translate_type(
+                baker_pkg_pb::Type {
+                    value: Some(baker_pkg_pb::r#type::Value::Bultin(key_type)),
+                },
+                graph,
+            ),
+            value_type,
+        ])
     } else {
         match field.label() {
             Label::Unset => value_type,
-            Label::Optional => Type {
-                generics: vec![value_type],
-                ..Type::with_fundamental(Fundamental::Optional)
-            },
-            Label::Repeated => Type {
-                generics: vec![value_type],
-                ..Type::with_fundamental(Fundamental::Vec)
-            },
+            Label::Optional => {
+                Type::with_fundamental(Fundamental::Optional).set_generic(value_type)
+            }
+            Label::Repeated => Type::with_fundamental(Fundamental::Vec).set_generic(value_type),
         }
     }
 }

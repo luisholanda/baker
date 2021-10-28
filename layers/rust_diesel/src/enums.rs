@@ -136,7 +136,7 @@ fn generate_from_sql(
         Type::with_global_name("diesel.deserialize.FromSql").set_generics(vec![db_ty, engine_ty]);
 
     let raw_not_none = Value::func_call(FunctionCall {
-        function: Some(IdentifierPath::from_dotted_path("diesel.not_none").global()),
+        function: Some(IdentifierPath::global_path("diesel.not_none")),
         args: vec![Value::identifier(IdentifierPath::from_dotted_path("raw"))],
         is_macro: true,
         ..Default::default()
@@ -156,9 +156,7 @@ fn generate_from_sql(
                 block: Some(Block {
                     statements: vec![],
                     return_value: Some(Value::func_call(FunctionCall {
-                        function: Some(
-                            IdentifierPath::from_dotted_path("std.result.Result.Ok").global(),
-                        ),
+                        function: Some(IdentifierPath::global_path("std.result.Result.Ok")),
                         args: vec![Value::identifier(p)],
                         ..Default::default()
                     })),
@@ -175,10 +173,9 @@ fn generate_from_sql(
             statements: vec![],
             return_value: Some({
                 let v_utf8_lossy = Value::func_call(FunctionCall {
-                    function: Some(
-                        IdentifierPath::from_dotted_path("std.string.String.from_utf8_lossy")
-                            .global(),
-                    ),
+                    function: Some(IdentifierPath::global_path(
+                        "std.string.String.from_utf8_lossy",
+                    )),
                     args: vec![v],
                     ..Default::default()
                 });
@@ -199,9 +196,7 @@ fn generate_from_sql(
                 });
 
                 Value::func_call(FunctionCall {
-                    function: Some(
-                        IdentifierPath::from_dotted_path("std.result.Result.Err").global(),
-                    ),
+                    function: Some(IdentifierPath::global_path("std.result.Result.Err")),
                     args: vec![err],
                     ..Default::default()
                 })
@@ -211,16 +206,13 @@ fn generate_from_sql(
 
     let from_sql = Function {
         header: Some(Type::with_name("from_sql")),
-        arguments: vec![Argument {
-            name: "raw".to_string(),
-            r#type: Some(
-                Type::with_name("u8")
-                    .as_generic_of(Type::with_fundamental(Fundamental::Slice))
-                    .as_generic_of(Type::with_fundamental(Fundamental::ShrdRef))
-                    .as_generic_of(Type::with_fundamental(Fundamental::Optional)),
-            ),
-            ..Default::default()
-        }],
+        arguments: vec![Argument::new(
+            "raw",
+            Type::with_name("u8")
+                .as_generic_of(Type::with_fundamental(Fundamental::Slice))
+                .as_generic_of(Type::with_fundamental(Fundamental::ShrdRef))
+                .as_generic_of(Type::with_fundamental(Fundamental::Optional)),
+        )],
         r#return: Some(Type::with_global_name("diesel.deserialize.Result").set_generic(Type::SELF)),
         implementation: Some(Block {
             statements: vec![Statement::switch(Match {
@@ -301,10 +293,10 @@ fn generate_to_sql(
                 })]
             },
             return_value: Some(Value::func_call(FunctionCall {
-                function: Some(IdentifierPath::from_dotted_path("std.result.Result.Ok").global()),
-                args: vec![Value::identifier(
-                    IdentifierPath::from_dotted_path("diesel.serialize.IsNull.No").global(),
-                )],
+                function: Some(IdentifierPath::global_path("std.result.Result.Ok")),
+                args: vec![Value::identifier(IdentifierPath::global_path(
+                    "diesel.serialize.IsNull.No",
+                ))],
                 ..Default::default()
             })),
         }),
@@ -330,15 +322,12 @@ fn to_sql_func_decl(db: Type) -> Function {
             ..Default::default()
         }],
         receiver: Some(Type::with_fundamental(Fundamental::ShrdRef)),
-        arguments: vec![Argument {
-            name: "out".to_string(),
-            r#type: Some(
-                Type::with_global_name("diesel.serialize.Output")
-                    .set_generics(vec![writer, db.clone()])
-                    .as_generic_of(Type::with_fundamental(Fundamental::UniqRef)),
-            ),
-            ..Default::default()
-        }],
+        arguments: vec![Argument::new(
+            "out",
+            Type::with_global_name("diesle.serialize.Output")
+                .set_generics(vec![writer, db.clone()])
+                .as_uniq_ref(None),
+        )],
         r#return: Some(Type::with_global_name("diesel.serialize.Result")),
         ..Default::default()
     }

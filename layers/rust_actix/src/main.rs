@@ -1,3 +1,18 @@
+//! # Actix-web Layer
+//!
+//! This binary implements a layer that generated an actix-web ready interface
+//! for defined services.
+//!
+//! For each service, we generate a trait, named after the service, that
+//! contains methods `fn(&self, req: Req, http_req: HttpRequest) -> Result<Res,
+//! Error>`, where `Req` is the RPC method request type and `Res` the
+//! response's. The trait also contains a `configure` method that can be used
+//! to mount the service and the respective HTTP routes.
+//!
+//! It also generate a namespace named after the service, that contains
+//! actix-web function handlers for each RPC method. These handlers are
+//! responsible for converting path/query/body parameters into the single
+//! request object passed to the trait method.
 use std::io;
 
 use baker_api_pb::HttpMethod;
@@ -44,10 +59,8 @@ fn generate_file(file: File, pkg: &PackageGraph) -> io::Result<IrFile> {
         let (handlers_ns, models) = generate_service_method_handlers(&mut srv, &model, pkg)?;
         generate_service_trait(&mut srv, pkg, models, &mut ns);
 
-        ns.nested_namespaces.insert(
-            srv.name.rsplit_once('.').unwrap().1.to_snake_case(),
-            handlers_ns,
-        );
+        ns.nested_namespaces
+            .insert(srv.basename().to_snake_case(), handlers_ns);
     }
 
     Ok(IrFile {
@@ -80,16 +93,8 @@ fn generate_service_trait(
             receiver: Some(Type::with_fundamental(Fundamental::ShrdRef)),
             r#return: Some(res_ty),
             arguments: vec![
-                Argument {
-                    name: "req".to_string(),
-                    r#type: Some(req_ty),
-                    ..Default::default()
-                },
-                Argument {
-                    name: "http_req".to_string(),
-                    r#type: Some(http_req_ty.clone()),
-                    ..Default::default()
-                },
+                Argument::new("req", req_ty),
+                Argument::new("http_req", http_req_ty.clone()),
             ],
             asyncness: true,
             documentation: rpc.documentation().to_string(),
@@ -103,9 +108,7 @@ fn generate_service_trait(
         documentation: std::mem::take(&mut service.documentation).unwrap_or_default(),
         attributes: vec![Attribute {
             value: Some(baker_ir_pb::attribute::Value::Call(FunctionCall {
-                function: Some(
-                    IdentifierPath::from_dotted_path("async_trait.async_trait").global(),
-                ),
+                function: Some(IdentifierPath::global_path("async_trait.async_trait")),
                 args: vec![Value {
                     value: Some(baker_ir_pb::value::Value::Raw("?Send".to_string())),
                     ..Default::default()
@@ -126,9 +129,6 @@ fn generate_service_trait(
     ns.interfaces.push(service_trait);
 }
 
-//
-// cfg
-//      [.route([method path], web::[http method]().to([method handler]))]*
 fn generate_service_trait_configure_method(
     service: &Service,
     models: Vec<MethodModel>,
@@ -206,14 +206,10 @@ fn generate_service_trait_configure_method(
     Function {
         header: Some(Type::with_name("configure")),
         receiver: Some(Type::with_global_name("std.sync.Arc").set_generic(Type::SELF)),
-        arguments: vec![Argument {
-            name: "cfg".to_string(),
-            r#type: Some(
-                Type::with_global_name("actix_web.web.ServiceConfig")
-                    .as_generic_of(Type::with_fundamental(Fundamental::UniqRef)),
-            ),
-            ..Default::default()
-        }],
+        arguments: vec![Argument::new(
+            "cfg",
+            Type::with_global_name("actix_web.web.ServiceConfig").as_uniq_ref(None),
+        )],
         implementation: Some(Block {
             statements: vec![
                 decl_arc_service,
@@ -241,7 +237,7 @@ fn generate_service_method_handlers(
     let mut ns = Namespace::default();
 
     ns.imports.push(Import {
-        module: Some(IdentifierPath::from_dotted_path("actix_web.FromRequest").global()),
+        module: Some(IdentifierPath::global_path("actix_web.FromRequest")),
         alias: Some("__FromRequest".into()),
         ..Default::default()
     });
@@ -262,24 +258,6 @@ fn generate_service_method_handlers(
     Ok((ns, models))
 }
 
-/*
- * #[[http method]([http path])]
- *+async fn [method_name](
- *+    service: web::Data<dyn [service trait]>,
- *+    payload: web::{Query, Json}<[request type]>,
- *+    http_req: web::HttpRequest,
- *+) -> Result<web::Json<[response type]>, actix_web::Error> {
- *+    let mut req = payload.into_inner();
- *+    let ([path fields],*) = web::Path::extract(&http_req)?;
- *
- *+    [[req.field] = field;]*
- *
- *     let response = service.[method_name](req, http_req).await?;
- *
- *+    Ok(web::Json(response))
- * }
- *
- */
 fn generate_handler_method(
     service: &Service,
     rpc: &Rpc,
@@ -345,13 +323,13 @@ fn generate_handler_method(
         let path_field_tuple = Value::tuple(path_fields_idents.clone());
 
         let path_extract = Value::func_call(FunctionCall {
-            function: Some(IdentifierPath::from_dotted_path("actix_web.web.Path.extract").global()),
+            function: Some(IdentifierPath::global_path("actix_web.web.Path.extract")),
             args: vec![http_req.clone().const_ref()],
             ..Default::default()
         });
 
         let path_match = Value::func_call(FunctionCall {
-            function: Some(IdentifierPath::from_dotted_path("actix_web.web.Path").global()),
+            function: Some(IdentifierPath::global_path("actix_web.web.Path")),
             args: vec![path_field_tuple],
             ..Default::default()
         });
@@ -403,12 +381,12 @@ fn generate_handler_method(
     }));
 
     let resp_val = Value::func_call(FunctionCall {
-        function: Some(IdentifierPath::from_dotted_path("actix_web.web.Json").global()),
+        function: Some(IdentifierPath::global_path("actix_web.web.Json")),
         args: vec![Value::identifier(resp_ident)],
         ..Default::default()
     });
     let ret_val = Value::func_call(FunctionCall {
-        function: Some(IdentifierPath::from_dotted_path("std.result.Result.Ok").global()),
+        function: Some(IdentifierPath::global_path("std.result.Result.Ok")),
         args: vec![resp_val],
         ..Default::default()
     });
@@ -423,21 +401,12 @@ fn generate_handler_method(
             ]),
         ),
         arguments: vec![
-            Argument {
-                name: "service".to_string(),
-                r#type: Some(Type::with_global_name("actix_web.web.Data").set_generic(dyn_service)),
-                ..Default::default()
-            },
-            Argument {
-                name: "payload".to_string(),
-                r#type: Some(payload_ty),
-                ..Default::default()
-            },
-            Argument {
-                name: "http_req".to_string(),
-                r#type: Some(Type::with_global_name("actix_web.HttpRequest")),
-                ..Default::default()
-            },
+            Argument::new(
+                "service",
+                Type::with_global_name("actix_web.web.Data").set_generic(dyn_service),
+            ),
+            Argument::new("payload", payload_ty),
+            Argument::new("http_req", Type::with_global_name("actix_web.HttpRequest")),
         ],
         implementation: Some(Block {
             statements,

@@ -154,12 +154,11 @@ fn handle_oneof_schema_traits(
 
     let oneof_ty = Type::with_name_and_scope(msg_name, oneof.name.to_camel_case());
 
-    let type_to_eq = |typ: &Type, col: &str| Type {
-        generics: vec![
+    let type_to_eq = |typ: &Type, col: &str| {
+        Type::with_global_name("diesel.helper_types.Eq").set_generics(vec![
             Type::with_name_and_scope(&model.table_path, col.to_string()),
             typ.clone(),
-        ],
-        ..Type::with_path(IdentifierPath::from_dotted_path("diesel.helper_types.Eq").global())
+        ])
     };
 
     let field_tys = fields_to_type(&oneof.fields, model, type_to_eq);
@@ -211,7 +210,7 @@ fn handle_oneof_schema_traits(
                 ..Default::default()
             }],
             imports: vec![Import {
-                module: Some(IdentifierPath::from_dotted_path("diesel.prelude").global()),
+                module: Some(IdentifierPath::global_path("diesel.prelude")),
                 glob: true,
                 ..Default::default()
             }],
@@ -238,7 +237,7 @@ fn generate_insertable_block(
     lifetime: Vec<String>,
     alias_name: &str,
 ) -> (TypeAlias, ImplBlock) {
-    let some = IdentifierPath::from_dotted_path("std.option.Option.Some").global();
+    let some = IdentifierPath::global_path("std.option.Option.Some");
     let values_qualifier = fields_to_options_tuple(field_tps);
 
     let qualifier_alias = Type {
@@ -331,7 +330,7 @@ fn generate_insertable_block(
     });
 
     let mut match_ = baker_ir_pb::statement::Match {
-        value: Some(Value::identifier(IdentifierPath::from_dotted_path("self"))),
+        value: Some(Value::identifier(IdentifierPath::self_())),
         arms: arms.collect(),
     };
     match_.arms.push(baker_ir_pb::statement::r#match::MatchArm {
@@ -344,10 +343,7 @@ fn generate_insertable_block(
     });
 
     let block = ImplBlock {
-        interface: Some(Type {
-            generics: vec![table_ty.clone()],
-            ..Type::with_path(IdentifierPath::from_dotted_path("diesel.Insertable").global())
-        }),
+        interface: Some(Type::with_global_name("diesel.Insertable").set_generic(table_ty.clone())),
         lifetimes: lifetime,
         assoc_types: vec![TypeAlias {
             alias: Some(Type::with_name("Values")),
@@ -357,7 +353,7 @@ fn generate_insertable_block(
         methods: vec![Function {
             header: Some(Type::with_name("values")),
             r#return: Some(Type::with_name("Self.Values")),
-            receiver: Some(Type::with_fundamental(Fundamental::Self_)),
+            receiver: Some(Type::SELF),
             implementation: Some(Block {
                 statements: vec![
                     Statement::assignment(Assignment {
@@ -365,10 +361,9 @@ fn generate_insertable_block(
                         assignment_type: AssignmentType::DefMutable as i32,
                         r#type: Some(qualifier_alias),
                         value: Some(Value::func_call(FunctionCall {
-                            function: Some(
-                                IdentifierPath::from_dotted_path("std.default.Default.default")
-                                    .global(),
-                            ),
+                            function: Some(IdentifierPath::global_path(
+                                "std.default.Default.default",
+                            )),
                             ..Default::default()
                         })),
                         ..Default::default()
@@ -414,17 +409,15 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
     let st = Type::with_name("__ST");
     let db = Type::with_name("__DB");
 
-    let queryable = Type {
-        generics: vec![st.clone(), db.clone()],
-        ..Type::with_path(IdentifierPath::from_dotted_path("diesel.Queryable").global())
-    };
+    let queryable =
+        Type::with_global_name("diesel.Queryable").set_generics(vec![st.clone(), db.clone()]);
 
     let constraints = vec![
         Constraint {
             constrained: Some(db.clone()),
-            interfaces: vec![Type::with_path(
-                IdentifierPath::from_dotted_path("diesel.backend.Backend").global(),
-            )],
+            interfaces: vec![Type::with_path(IdentifierPath::global_path(
+                "diesel.backend.Backend",
+            ))],
             ..Default::default()
         },
         Constraint {
@@ -504,9 +497,7 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
             block: Some(Block {
                 statements: vec![],
                 return_value: Some(Value::func_call(FunctionCall {
-                    function: Some(
-                        IdentifierPath::from_dotted_path("std.default.Default.default").global(),
-                    ),
+                    function: Some(IdentifierPath::global_path("std.default.Default.default")),
                     ..Default::default()
                 })),
             }),
@@ -517,12 +508,8 @@ fn generate_queryable_block(oneof: &OneOf, model: &MsgModel) -> (TypeAlias, Impl
 
     let build_impl = Function {
         header: Some(Type::with_name("build")),
-        arguments: vec![Argument {
-            name: "row".into(),
-            r#type: Some(Type::with_name("Self.Row")),
-            ..Default::default()
-        }],
-        r#return: Some(Type::with_fundamental(Fundamental::Self_)),
+        arguments: vec![Argument::new("row", Type::with_name("Self.Row"))],
+        r#return: Some(Type::SELF),
         visibility: Visibility::Private as i32,
         implementation: Some(Block {
             statements: vec![match_row],
@@ -575,7 +562,7 @@ fn fields_to_options_tuple(field_tps: Vec<Type>) -> Type {
 }
 
 fn n_none_values(elems: usize) -> Vec<Value> {
-    let none = IdentifierPath::from_dotted_path("std.option.Option.None").global();
+    let none = IdentifierPath::global_path("std.option.Option.None");
 
     (0..elems)
         .map(|_| Value::identifier(none.clone()))

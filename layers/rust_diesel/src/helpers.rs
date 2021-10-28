@@ -145,11 +145,7 @@ pub fn generate_all_of_helper(
             "all_of_{}",
             &parent_name.last().name.to_snake_case()
         ))),
-        arguments: vec![Argument {
-            name: fk_name.to_string(),
-            r#type: Some(field_ty),
-            ..Default::default()
-        }],
+        arguments: vec![Argument::new(fk_name, field_ty)],
         r#return: Some(ret_ty),
         implementation: Some(Block {
             return_value: Some(ret_val),

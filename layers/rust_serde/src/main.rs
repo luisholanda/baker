@@ -300,7 +300,7 @@ fn derive_call(traits: &[&str]) -> Attribute {
             function: Some(IdentifierPath::from_dotted_path("derive")),
             args: traits
                 .iter()
-                .map(|t| IdentifierPath::from_dotted_path(&t).global())
+                .map(|t| IdentifierPath::global_path(&t))
                 .map(baker_ir_pb::Value::identifier)
                 .collect(),
             ..Default::default()

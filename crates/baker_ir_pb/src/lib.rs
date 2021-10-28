@@ -81,6 +81,10 @@ impl IdentifierPath {
         Self::from_dotted_path("self")
     }
 
+    pub fn global_path(name: &str) -> Self {
+        Self::from_dotted_path(name).global()
+    }
+
     pub fn from_dotted_path(name: &str) -> Self {
         Self {
             segments: name
@@ -151,7 +155,7 @@ impl Type {
     }
 
     pub fn with_global_name(name: &str) -> Self {
-        Self::with_path(IdentifierPath::from_dotted_path(name).global())
+        Self::with_path(IdentifierPath::global_path(name))
     }
 
     pub fn with_name_and_scope(scope: &str, name: String) -> Self {
@@ -210,6 +214,14 @@ impl Type {
 
     pub fn as_generic_of(self, wrapper: Self) -> Self {
         wrapper.set_generic(self)
+    }
+
+    pub fn as_uniq_ref(self, lifetime: Option<&str>) -> Self {
+        Self {
+            generics: vec![self],
+            lifetimes: lifetime.map_or_else(Default::default, |l| vec![l.to_string()]),
+            ..Self::with_fundamental(self::r#type::Fundamental::UniqRef)
+        }
     }
 }
 
@@ -347,6 +359,16 @@ impl Statement {
     pub fn switch(match_: self::statement::Match) -> Self {
         Self {
             statement: Some(self::statement::Statement::Switch(match_)),
+        }
+    }
+}
+
+impl self::function::Argument {
+    pub fn new(name: impl Into<String>, typ: Type) -> Self {
+        Self {
+            name: name.into(),
+            r#type: Some(typ),
+            ..Default::default()
         }
     }
 }

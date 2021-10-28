@@ -9,3 +9,9 @@ impl Message {
         self.name.rsplit_once('.').map_or("", |(s, _)| s)
     }
 }
+
+impl Service {
+    pub fn basename(&self) -> &str {
+        self.name.rsplit_once('.').map_or(&self.name, |(_, n)| n)
+    }
+}
