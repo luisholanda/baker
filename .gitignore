@@ -38,6 +38,6 @@ tags
 # Persistent undo
 [._]*.un~
 
-examples/blog/src/model/
+examples/blog/src/blog.api.v1.rs
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,vim

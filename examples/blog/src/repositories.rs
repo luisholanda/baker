@@ -7,6 +7,7 @@ use crate::{
     Error, Result,
 };
 
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PaginationParams {
     pub after: Option<i64>,
     pub limit: u32,

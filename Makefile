@@ -21,7 +21,7 @@ examples/blog/src/blog.api.v1.rs: $(EXAMPLE_PROTO) $(BAKER) $(LAYER_BINS) $(CODE
 	$(BAKER) $(EXAMPLE_PROTO) \
 		--layers $(LAYER_BINS) \
 		--codegen=$(RUST_CODEGEN) \
-		--output-folder=examples/blog/src/model
+		--output-folder=examples/blog/src/
 
 $(BAKER): $(BAKER_SRCS) $(PROTO_SRCS)
 	cargo build --bin baker

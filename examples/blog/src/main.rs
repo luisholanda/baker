@@ -1,9 +1,15 @@
 #[macro_use]
 extern crate diesel;
 
-use std::error::Error as StdError;
+use std::{
+    error::Error as StdError,
+    net::{IpAddr, Ipv4Addr},
+    sync::Arc,
+};
 
 use actix_web::error::InternalError;
+
+use crate::{blog::BlobService, service::*};
 
 pub mod schema {
     table! {
@@ -16,6 +22,9 @@ pub mod schema {
     }
 
     table! {
+        use diesel::sql_types::*;
+        use crate::blog::post::ContentFormatSql;
+
         posts (post_id) {
             post_id -> BigInt,
             title -> Text,
@@ -23,7 +32,7 @@ pub mod schema {
             dislikes -> Integer,
             author_id -> BigInt,
             content -> Text,
-            content_format -> crate::blog::post::ContentFormatSql,
+            content_format -> ContentFormatSql,
         }
     }
 
@@ -37,14 +46,31 @@ pub mod schema {
     }
 }
 
-#[path = "./model/blog.api.v1.rs"]
+#[path = "./blog.api.v1.rs"]
 pub mod blog;
 
 pub mod repositories;
 pub mod service;
 
-pub type Error = InternalError<Box<dyn StdError>>;
+pub type Error = InternalError<Box<dyn StdError + Send + Sync>>;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-fn main() {}
+#[actix_web::main]
+async fn main() {
+    let db_url = std::env::var("DATABASE_URL").unwrap();
+    let pool: DbPool = diesel::r2d2::Pool::builder()
+        .build(diesel::r2d2::ConnectionManager::new(&db_url))
+        .unwrap();
+
+    let service = Arc::new(BlobServiceImpl::new(pool));
+
+    actix_web::HttpServer::new(move || {
+        actix_web::App::new().configure(|cfg| service.clone().configure(cfg))
+    })
+    .bind((IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080))
+    .unwrap()
+    .run()
+    .await
+    .unwrap()
+}
